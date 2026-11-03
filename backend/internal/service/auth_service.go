@@ -6,24 +6,30 @@ import (
 	"log"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/redis"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
 	postulanteRepo  domain.PostulanteRepository
 	registroCivil   domain.RegistroCivilClient
-	intentosLimiter *redis.IntentosLimiter
+	intentosLimiter domain.IntentosLimiter
 	tokenManager    domain.TokenManager
-	tokenStorage    *redis.TokenStorage
+	tokenStorage    TokenStorage
+}
+
+// TokenStorage interface para inyección de dependencias
+type TokenStorage interface {
+	GuardarToken(ctx context.Context, cedula string, token string) error
+	ValidarToken(ctx context.Context, cedula string, token string) (bool, error)
+	EliminarToken(ctx context.Context, cedula string) error
 }
 
 func NewAuthService(
 	postulanteRepo domain.PostulanteRepository,
 	registroCivil domain.RegistroCivilClient,
-	intentosLimiter *redis.IntentosLimiter,
+	intentosLimiter domain.IntentosLimiter,
 	tokenManager domain.TokenManager,
-	tokenStorage *redis.TokenStorage,
+	tokenStorage TokenStorage,
 ) *AuthService {
 	return &AuthService{
 		postulanteRepo:  postulanteRepo,
@@ -107,9 +113,16 @@ func (s *AuthService) Registrar(ctx context.Context, cedula string, correo strin
 // Login autentica a un postulante
 func (s *AuthService) Login(ctx context.Context, cedula string, password string) (*domain.AuthResponse, error) {
 	// Verificar bloqueo
-	err := s.intentosLimiter.VerificarYBloquearSiNecesario(ctx, cedula)
+	isBlocked, retryAfter, err := s.intentosLimiter.VerificarBloqueo(ctx, cedula)
 	if err != nil {
 		return nil, err
+	}
+	if isBlocked {
+		return nil, &domain.AppError{
+			Code:    domain.ErrBloqueado.Code,
+			Message: fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
+			Err:     domain.ErrBloqueado,
+		}
 	}
 
 	// Buscar postulante por cédula
