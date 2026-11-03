@@ -55,3 +55,32 @@ func (p *Postgres) Close() {
 func (p *Postgres) Ping(ctx context.Context) error {
 	return p.pool.Ping(ctx)
 }
+
+// WithTx ejecuta una función dentro de una transacción
+// BEGIN se ejecuta al inicio, COMMIT si no hay error, ROLLBACK en caso contrario
+func (p *Postgres) WithTx(ctx context.Context, fn func(ctx context.Context, tx interface{}) error) error {
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("error al iniciar transacción: %w", err)
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback(ctx)
+			panic(p) // re-throw el panic después del rollback
+		}
+	}()
+
+	if err := fn(ctx, tx); err != nil {
+		if rbErr := tx.Rollback(ctx); rbErr != nil {
+			return fmt.Errorf("error en rollback: %v (error original: %w)", rbErr, err)
+		}
+		return err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("error al hacer commit: %w", err)
+	}
+
+	return nil
+}
