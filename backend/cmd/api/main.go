@@ -58,7 +58,13 @@ func main() {
 	authService := service.NewAuthService(postulanteRepo, registroCivil, intentosLimiter, tokenManager, tokenStorage)
 	authHandler := handler.NewAuthHandler(authService)
 
-	h := handler.NewHandler(pg, redisClient, authHandler)
+	// Catalog dependencies
+	catalogoRepo := repository.NewCatalogoRepository(pg.Pool())
+	catalogoCache := redis.NewCatalogoCache(redisClient)
+	catalogoService := service.NewCatalogoService(catalogoRepo, catalogoCache, log.Default())
+	catalogoHandler := handler.NewCatalogoHandler(catalogoService)
+
+	h := handler.NewHandler(pg, redisClient, authHandler, catalogoHandler)
 
 	// Setup router
 	r := gin.New()
