@@ -161,8 +161,12 @@ const RegistroPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">BIESS</h1>
+          <p className="text-gray-600 mt-2">Sistema de Registro y Postulación</p>
+        </div>
         <Card title={paso === 1 ? 'Verificar Identidad' : 'Registro de Usuario'}>
           {error && <Alert type="error" message={error} />}
           
@@ -178,7 +182,6 @@ const RegistroPage = () => {
                 error={errors.cedula}
                 required
               />
-              
               <Select
                 label="Método de validación"
                 name="tipoValidacion"
@@ -189,7 +192,6 @@ const RegistroPage = () => {
                   { value: 'codigo', label: 'Código dactilar (10 dígitos)' },
                 ]}
               />
-
               {formData.tipoValidacion === 'fecha' ? (
                 <Input
                   label="Fecha de expedición"
@@ -213,7 +215,6 @@ const RegistroPage = () => {
                   required
                 />
               )}
-
               <Button type="submit" loading={loading} className="w-full">
                 Verificar Identidad
               </Button>
@@ -221,19 +222,13 @@ const RegistroPage = () => {
           ) : (
             <form onSubmit={handleRegistro} className="space-y-6">
               {identidadData && (
-                <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-                  <p className="text-sm text-blue-800">
-                    <strong>Nombre:</strong> {identidadData.nombres} {identidadData.apellidos}
-                  </p>
-                  <p className="text-sm text-blue-800">
-                    <strong>Cédula:</strong> {identidadData.cedula}
-                  </p>
-                  <p className="text-sm text-blue-800">
-                    <strong>Nacionalidad:</strong> {identidadData.nacionalidad}
-                  </p>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-green-800 font-medium">Identidad verificada:</p>
+                  <p className="text-sm text-green-700"><strong>Nombre:</strong> {identidadData.nombres} {identidadData.apellidos}</p>
+                  <p className="text-sm text-green-700"><strong>Cédula:</strong> {identidadData.cedula}</p>
+                  <p className="text-sm text-green-700"><strong>Nacionalidad:</strong> {identidadData.nacionalidad}</p>
                 </div>
               )}
-
               <Input
                 label="Correo Electrónico"
                 name="correo"
@@ -267,21 +262,15 @@ const RegistroPage = () => {
               <Button type="submit" loading={loading} className="w-full">
                 Registrarse
               </Button>
-              <Button
-                type="button"
-                onClick={() => setPaso(1)}
-                className="w-full"
-                variant="secondary"
-              >
+              <Button type="button" onClick={() => setPaso(1)} className="w-full" variant="secondary">
                 Atrás
               </Button>
             </form>
           )}
-
           <div className="mt-6 text-center">
             <span className="text-sm text-gray-600">
               ¿Ya tiene cuenta?{' '}
-              <Link to="/login" className="text-blue-600 hover:text-blue-500">
+              <Link to="/login" className="text-blue-600 hover:text-blue-500 font-medium">
                 Inicie Sesión
               </Link>
             </span>

@@ -29,6 +29,17 @@ func (h *AuthHandler) VerificarIdentidad(c *gin.Context) {
 
 	data, err := h.authService.VerificarIdentidad(c.Request.Context(), req.Cedula, req.FechaExpedicion, req.CodigoDactilar)
 	if err != nil {
+		// Si es error de bloqueo, agregar header Retry-After y body con retry_after
+		if appErr, ok := err.(*domain.AppError); ok && appErr.Code == domain.ErrBloqueado.Code {
+			retryAfter := 600 // 10 minutos por defecto
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":       appErr.Message,
+				"codigo":      appErr.Code,
+				"retry_after": retryAfter,
+			})
+			return
+		}
 		c.Error(err)
 		return
 	}
@@ -63,10 +74,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	response, err := h.authService.Login(c.Request.Context(), req.Cedula, req.Password)
 	if err != nil {
-		// Si es error de bloqueo, agregar header Retry-After
+		// Si es error de bloqueo, agregar header Retry-After y body con retry_after
 		if appErr, ok := err.(*domain.AppError); ok && appErr.Code == domain.ErrBloqueado.Code {
 			retryAfter := 600 // 10 minutos por defecto
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":       appErr.Message,
+				"codigo":      appErr.Code,
+				"retry_after": retryAfter,
+			})
+			return
 		}
 		c.Error(err)
 		return

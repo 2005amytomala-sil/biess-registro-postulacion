@@ -97,16 +97,25 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full">
+        <div className="text-center mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">BIESS</h1>
+          <p className="text-gray-600 mt-2">Sistema de Registro y Postulación</p>
+        </div>
         <Card title="Iniciar Sesión">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && <Alert type="error" message={error} />}
             {bloqueado && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
-                <p className="text-sm text-yellow-800">
-                  Cuenta bloqueada. Intente nuevamente en: <strong>{formatTime(retryAfter)}</strong>
-                </p>
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-9a1 1 0 10-2 0v4a1 1 0 102 0v-4zm0 6a1 1 0 10-2 0 1 1 0 102 0z" clipRule="evenodd" />
+                  </svg>
+                  <p className="text-sm text-red-800">
+                    Cuenta bloqueada. Intente nuevamente en: <strong className="text-red-900">{formatTime(retryAfter)}</strong>
+                  </p>
+                </div>
               </div>
             )}
             <Input
@@ -135,15 +144,15 @@ const LoginPage = () => {
               Iniciar Sesión
             </Button>
           </form>
-          <div className="mt-6 text-center">
-            <Link to="/recuperar" className="text-sm text-blue-600 hover:text-blue-500">
+          <div className="mt-6 flex justify-center">
+            <Link to="/recuperar" className="text-sm text-blue-600 hover:text-blue-500 font-medium">
               ¿Olvidó su contraseña?
             </Link>
           </div>
           <div className="mt-4 text-center">
             <span className="text-sm text-gray-600">
               ¿No tiene cuenta?{' '}
-              <Link to="/registro" className="text-blue-600 hover:text-blue-500">
+              <Link to="/registro" className="text-blue-600 hover:text-blue-500 font-medium">
                 Regístrese
               </Link>
             </span>

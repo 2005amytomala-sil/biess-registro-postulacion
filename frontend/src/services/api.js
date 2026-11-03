@@ -37,7 +37,7 @@ api.interceptors.response.use(
 
     switch (status) {
       case 401:
-        // No autorizado: cerrar sesión
+        // No autorizado: cerrar sesión y redirigir
         localStorage.removeItem('token');
         localStorage.removeItem('usuario');
         window.location.href = '/login';

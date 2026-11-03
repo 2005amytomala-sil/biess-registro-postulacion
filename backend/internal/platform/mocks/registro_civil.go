@@ -95,6 +95,19 @@ func NewRegistroCivilMock() *RegistroCivilMock {
 		EstadoCivil:       "divorciado",
 	}
 
+	// Caso 7: Válido - ecuatoriano, soltero (para pruebas de bloqueo)
+	dataset["0909090909"] = &domain.RegistroCivilData{
+		Cedula:            "0909090909",
+		FechaExpedicion:   "01/01/2015",
+		CodigoDactilar:    "1111222233",
+		Nombres:           "Carlos",
+		Apellidos:         "Test Prueba",
+		Genero:            "masculino",
+		FechaNacimiento:   "01/01/1990",
+		Nacionalidad:      "Ecuatoriana",
+		EstadoCivil:       "soltero",
+	}
+
 	return &RegistroCivilMock{dataset: dataset}
 }
 

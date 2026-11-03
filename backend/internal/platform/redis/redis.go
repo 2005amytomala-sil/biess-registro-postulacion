@@ -2,6 +2,7 @@ package redis
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/config"
@@ -42,4 +43,14 @@ func (r *Redis) healthCheck(ctx context.Context) error {
 	defer cancel()
 
 	return r.Ping(ctx)
+}
+
+func (r *Redis) CheckConnection(ctx context.Context) error {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	if err := r.client.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("redis no está disponible: %w", err)
+	}
+	return nil
 }
