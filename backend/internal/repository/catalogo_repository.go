@@ -6,21 +6,21 @@ import (
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type CatalogoRepository struct {
-	db *pgx.Conn
+	pool *pgxpool.Pool
 }
 
-func NewCatalogoRepository(db *pgx.Conn) *CatalogoRepository {
-	return &CatalogoRepository{db: db}
+func NewCatalogoRepository(pool *pgxpool.Pool) *CatalogoRepository {
+	return &CatalogoRepository{pool: pool}
 }
 
 func (r *CatalogoRepository) ObtenerPaises(ctx context.Context) ([]domain.Pais, error) {
 	query := `SELECT id, nombre, created_at FROM paises ORDER BY nombre`
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.pool.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("error al consultar paises: %w", err)
 	}
@@ -45,7 +45,7 @@ func (r *CatalogoRepository) ObtenerPaises(ctx context.Context) ([]domain.Pais, 
 func (r *CatalogoRepository) ObtenerProvincias(ctx context.Context) ([]domain.Provincia, error) {
 	query := `SELECT id, nombre, created_at FROM provincias ORDER BY id`
 
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.pool.Query(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("error al consultar provincias: %w", err)
 	}
@@ -70,7 +70,7 @@ func (r *CatalogoRepository) ObtenerProvincias(ctx context.Context) ([]domain.Pr
 func (r *CatalogoRepository) ObtenerCantonesPorProvincia(ctx context.Context, provinciaID int) ([]domain.Canton, error) {
 	query := `SELECT id, provincia_id, nombre, created_at FROM cantones WHERE provincia_id = $1 ORDER BY nombre`
 
-	rows, err := r.db.Query(ctx, query, provinciaID)
+	rows, err := r.pool.Query(ctx, query, provinciaID)
 	if err != nil {
 		return nil, fmt.Errorf("error al consultar cantones: %w", err)
 	}
@@ -96,7 +96,7 @@ func (r *CatalogoRepository) ExisteProvincia(ctx context.Context, provinciaID in
 	query := `SELECT EXISTS(SELECT 1 FROM provincias WHERE id = $1)`
 
 	var existe bool
-	err := r.db.QueryRow(ctx, query, provinciaID).Scan(&existe)
+	err := r.pool.QueryRow(ctx, query, provinciaID).Scan(&existe)
 	if err != nil {
 		return false, fmt.Errorf("error al verificar existencia de provincia: %w", err)
 	}
