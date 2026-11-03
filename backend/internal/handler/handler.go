@@ -8,14 +8,26 @@ import (
 
 type Handler struct {
 	health *HealthHandler
+	auth   *AuthHandler
 }
 
-func NewHandler(pg *postgres.Postgres, redis *redis.Redis) *Handler {
+func NewHandler(pg *postgres.Postgres, rdb *redis.Redis, auth *AuthHandler) *Handler {
 	return &Handler{
-		health: NewHealthHandler(pg, redis),
+		health: NewHealthHandler(pg, rdb),
+		auth:   auth,
 	}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
 	r.GET("/health", h.health.Check)
+
+	// Auth routes
+	api := r.Group("/api/v1/auth")
+	{
+		api.POST("/verificar-identidad", h.auth.VerificarIdentidad)
+		api.POST("/registro", h.auth.Registrar)
+		api.POST("/login", h.auth.Login)
+		api.POST("/recuperar", h.auth.Recuperar)
+		api.POST("/restablecer", h.auth.Restablecer)
+	}
 }

@@ -1,9 +1,5 @@
 package repository
 
-type Repository struct {
-	// Dependencies will be injected here
-}
+// This file is kept for package organization
+// Individual repositories are in their own files
 
-func NewRepository() *Repository {
-	return &Repository{}
-}
