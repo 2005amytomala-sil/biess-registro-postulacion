@@ -1,15 +1,21 @@
 package handler
 
-import "github.com/gin-gonic/gin"
+import (
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/redis"
+	"github.com/gin-gonic/gin"
+)
 
 type Handler struct {
-	// Dependencies will be injected here
+	health *HealthHandler
 }
 
-func NewHandler() *Handler {
-	return &Handler{}
+func NewHandler(pg *postgres.Postgres, redis *redis.Redis) *Handler {
+	return &Handler{
+		health: NewHealthHandler(pg, redis),
+	}
 }
 
 func (h *Handler) RegisterRoutes(r *gin.Engine) {
-	// Routes will be registered here
+	r.GET("/health", h.health.Check)
 }

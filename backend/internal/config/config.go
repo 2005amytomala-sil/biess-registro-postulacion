@@ -61,6 +61,15 @@ func (c *PostgresConfig) DSN() string {
 		c.Host, c.Port, c.User, c.Password, c.DBName)
 }
 
+func (c *PostgresConfig) DSNWithHost() string {
+	host := c.Host
+	if host == "localhost" {
+		host = "127.0.0.1"
+	}
+	return fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, c.Port, c.User, c.Password, c.DBName)
+}
+
 func (c *RedisConfig) Addr() string {
 	return fmt.Sprintf("%s:%s", c.Host, c.Port)
 }
