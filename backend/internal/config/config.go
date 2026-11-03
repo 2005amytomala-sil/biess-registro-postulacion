@@ -4,12 +4,18 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 )
 
 type Config struct {
 	Server   ServerConfig
 	Postgres PostgresConfig
 	Redis    RedisConfig
+	CORS     CORSConfig
+}
+
+type CORSConfig struct {
+	AllowedOrigins []string
 }
 
 type ServerConfig struct {
@@ -51,6 +57,9 @@ func Load() (*Config, error) {
 			Password: getEnv("REDIS_PASSWORD", ""),
 			DB:       getEnvInt("REDIS_DB", 0),
 		},
+		CORS: CORSConfig{
+			AllowedOrigins: getEnvSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://localhost:3000"}),
+		},
 	}
 
 	return cfg, nil
@@ -86,6 +95,13 @@ func getEnvInt(key string, defaultValue int) int {
 		if intVal, err := strconv.Atoi(value); err == nil {
 			return intVal
 		}
+	}
+	return defaultValue
+}
+
+func getEnvSlice(key string, defaultValue []string) []string {
+	if value := os.Getenv(key); value != "" {
+		return strings.Split(value, ",")
 	}
 	return defaultValue
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/config"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/handler"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/middleware"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/redis"
 	"github.com/gin-gonic/gin"
@@ -48,7 +49,14 @@ func main() {
 	h := handler.NewHandler(pg, rdb)
 
 	// Setup router
-	r := gin.Default()
+	r := gin.New()
+
+	// Add custom middlewares
+	r.Use(middleware.Recover())
+	r.Use(middleware.Logging())
+	r.Use(middleware.ErrorHandler())
+	r.Use(middleware.CORS(cfg.CORS.AllowedOrigins))
+
 	h.RegisterRoutes(r)
 
 	// Server configuration
