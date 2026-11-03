@@ -1,0 +1,57 @@
+package postgres
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/config"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+type Postgres struct {
+	pool *pgxpool.Pool
+}
+
+func New(ctx context.Context, cfg *config.PostgresConfig) (*Postgres, error) {
+	dsn := cfg.DSN()
+	if cfg.Host == "localhost" {
+		dsn = fmt.Sprintf("host=127.0.0.1 port=%s user=%s password=%s dbname=%s sslmode=disable",
+			cfg.Port, cfg.User, cfg.Password, cfg.DBName)
+	}
+	poolConfig, err := pgxpool.ParseConfig(dsn)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing postgres config: %w", err)
+	}
+
+	poolConfig.MaxConns = 10
+	poolConfig.MinConns = 2
+	poolConfig.MaxConnLifetime = time.Hour
+	poolConfig.MaxConnIdleTime = 30 * time.Minute
+	poolConfig.HealthCheckPeriod = 1 * time.Minute
+
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error creating postgres pool: %w", err)
+	}
+
+	if err := pool.Ping(ctx); err != nil {
+		return nil, fmt.Errorf("error pinging postgres: %w", err)
+	}
+
+	return &Postgres{pool: pool}, nil
+}
+
+func (p *Postgres) Pool() *pgxpool.Pool {
+	return p.pool
+}
+
+func (p *Postgres) Close() {
+	if p.pool != nil {
+		p.pool.Close()
+	}
+}
+
+func (p *Postgres) Ping(ctx context.Context) error {
+	return p.pool.Ping(ctx)
+}
