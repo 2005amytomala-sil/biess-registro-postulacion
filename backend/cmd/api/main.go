@@ -13,8 +13,12 @@ import (
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/config"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/handler"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/middleware"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/jwt"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/mocks"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/redis"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/repository"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
@@ -42,11 +46,19 @@ func main() {
 	defer pg.Close()
 
 	// Initialize Redis
-	rdb := redis.New(&cfg.Redis)
-	defer rdb.Close()
+	redisClient := redis.New(&cfg.Redis)
+	defer redisClient.Close()
 
 	// Initialize dependencies
-	h := handler.NewHandler(pg, rdb)
+	postulanteRepo := repository.NewPostulanteRepository(pg)
+	registroCivil := mocks.NewRegistroCivilMock()
+	intentosLimiter := redis.NewIntentosLimiter(redisClient.Client())
+	tokenStorage := redis.NewTokenStorage(redisClient.Client())
+	tokenManager := jwt.NewTokenManager(cfg.JWT.SecretKey, cfg.JWT.ExpirationHrs)
+	authService := service.NewAuthService(postulanteRepo, registroCivil, intentosLimiter, tokenManager, tokenStorage)
+	authHandler := handler.NewAuthHandler(authService)
+
+	h := handler.NewHandler(pg, redisClient, authHandler)
 
 	// Setup router
 	r := gin.New()
