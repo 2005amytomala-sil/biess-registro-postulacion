@@ -7,19 +7,54 @@ import Alert from '../components/Alert';
 import Card from '../components/Card';
 
 const LoginPage = () => {
-  const [cedula, setCedula] = useState('');
-  const [password, setPassword] = useState('');
+  const [formData, setFormData] = useState({
+    cedula: '',
+    password: '',
+  });
+  const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
+  const validateCedula = (cedula) => {
+    if (!cedula) return 'La cédula es requerida';
+    if (!/^\d{10}$/.test(cedula)) return 'La cédula debe tener 10 dígitos';
+    return '';
+  };
+
+  const validatePassword = (password) => {
+    if (!password) return 'La contraseña es requerida';
+    return '';
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+
+    let error = '';
+    if (name === 'cedula') {
+      error = validateCedula(value);
+    } else if (name === 'password') {
+      error = validatePassword(value);
+    }
+    setErrors({ ...errors, [name]: error });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
 
-    const result = await login(cedula, password);
+    const cedulaError = validateCedula(formData.cedula);
+    const passwordError = validatePassword(formData.password);
+
+    if (cedulaError || passwordError) {
+      setErrors({ cedula: cedulaError, password: passwordError });
+      return;
+    }
+
+    setLoading(true);
+    const result = await login(formData.cedula, formData.password);
     setLoading(false);
 
     if (result.success) {
@@ -37,18 +72,22 @@ const LoginPage = () => {
             {error && <Alert type="error" message={error} />}
             <Input
               label="Cédula"
+              name="cedula"
               type="text"
-              value={cedula}
-              onChange={(e) => setCedula(e.target.value)}
-              placeholder="Ingrese su cédula"
+              value={formData.cedula}
+              onChange={handleChange}
+              placeholder="Ingrese su cédula (10 dígitos)"
+              error={errors.cedula}
               required
             />
             <Input
               label="Contraseña"
+              name="password"
               type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={formData.password}
+              onChange={handleChange}
               placeholder="Ingrese su contraseña"
+              error={errors.password}
               required
             />
             <Button type="submit" loading={loading} className="w-full">

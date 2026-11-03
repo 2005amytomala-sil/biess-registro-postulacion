@@ -17,7 +17,7 @@ const Navbar = () => {
             {isAuthenticated ? (
               <>
                 <span className="text-sm">
-                  Hola, {usuario?.nombres || 'Usuario'}
+                  Hola, {usuario?.cedula || 'Usuario'}
                 </span>
                 <Link
                   to="/formulario"

@@ -30,7 +30,7 @@ export const AuthProvider = ({ children }) => {
   const login = async (cedula, password) => {
     try {
       const response = await api.post('/auth/login', { cedula, password });
-      const { token: newToken, usuario: newUsuario } = response.data;
+      const { token: newToken, user: newUsuario } = response.data;
 
       setToken(newToken);
       setUsuario(newUsuario);
@@ -57,12 +57,69 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (datos) => {
     try {
-      const response = await api.post('/auth/register', datos);
+      const response = await api.post('/auth/registro', datos);
+      const { token, user } = response.data;
+
+      setToken(token);
+      setUsuario(user);
+
+      localStorage.setItem('token', token);
+      localStorage.setItem('usuario', JSON.stringify(user));
+
       return { success: true, data: response.data };
     } catch (error) {
       return {
         success: false,
         message: error.message || 'Error al registrar usuario',
+      };
+    }
+  };
+
+  const verificarIdentidad = async (cedula, fechaExpedicion, codigoDactilar) => {
+    try {
+      const response = await api.post('/auth/verificar-identidad', {
+        cedula,
+        fecha_expedicion: fechaExpedicion,
+        codigo_dactilar: codigoDactilar,
+      });
+      return { success: true, data: response.data };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Error al verificar identidad',
+      };
+    }
+  };
+
+  const recuperarPassword = async (cedula, fechaExpedicion, codigoDactilar) => {
+    try {
+      const response = await api.post('/auth/recuperar', {
+        cedula,
+        fecha_expedicion: fechaExpedicion,
+        codigo_dactilar: codigoDactilar,
+      });
+      return { success: true, data: response.data };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Error al recuperar contraseña',
+      };
+    }
+  };
+
+  const restablecerPassword = async (cedula, token, password, confirmPassword) => {
+    try {
+      const response = await api.post('/auth/restablecer', {
+        cedula,
+        token,
+        password,
+        confirm_password: confirmPassword,
+      });
+      return { success: true, data: response.data };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Error al restablecer contraseña',
       };
     }
   };
@@ -77,6 +134,9 @@ export const AuthProvider = ({ children }) => {
     login,
     logout,
     register,
+    verificarIdentidad,
+    recuperarPassword,
+    restablecerPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
