@@ -1,0 +1,20 @@
+# Node / frontend
+node_modules/
+dist/
+ 
+# Variables de entorno (se sube solo .env.example)
+.env
+.env.*
+!.env.example
+ 
+# Go / backend
+backend/bin/
+*.exe
+*.test
+*.out
+ 
+# Editor / sistema
+.idea/
+.vscode/
+.windsurf/
+.DS_Store
