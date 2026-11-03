@@ -44,6 +44,7 @@ export const AuthProvider = ({ children }) => {
       return {
         success: false,
         message: error.message || 'Error al iniciar sesión',
+        retryAfter: error.retryAfter,
       };
     }
   };

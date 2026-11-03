@@ -3,6 +3,8 @@ package redis
 import (
 	"context"
 	"fmt"
+	"sync"
+	"time"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
 	"github.com/redis/go-redis/v9"
@@ -16,20 +18,119 @@ const (
 	bloqueoKeyPrefix       = "auth:bloqueo:"
 )
 
+// In-memory implementation for testing without Redis
+type InMemoryIntentosLimiter struct {
+	mu              sync.RWMutex
+	intentos        map[string]int
+	bloqueos        map[string]time.Time
+	bloqueoDurations map[string]time.Duration
+}
+
+func NewInMemoryIntentosLimiter() *InMemoryIntentosLimiter {
+	return &InMemoryIntentosLimiter{
+		intentos:        make(map[string]int),
+		bloqueos:        make(map[string]time.Time),
+		bloqueoDurations: make(map[string]time.Duration),
+	}
+}
+
+func (l *InMemoryIntentosLimiter) IncrementarIntento(ctx context.Context, cedula string) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	l.intentos[cedula]++
+	return l.intentos[cedula], nil
+}
+
+func (l *InMemoryIntentosLimiter) VerificarBloqueo(ctx context.Context, cedula string) (bool, int, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	bloqueadoHasta, existe := l.bloqueos[cedula]
+	if !existe {
+		return false, 0, nil
+	}
+
+	if time.Now().Before(bloqueadoHasta) {
+		retryAfter := int(time.Until(bloqueadoHasta).Seconds())
+		return true, retryAfter, nil
+	}
+
+	// Bloqueo expirado, limpiar
+	l.mu.Lock()
+	delete(l.bloqueos, cedula)
+	delete(l.bloqueoDurations, cedula)
+	l.mu.Unlock()
+
+	return false, 0, nil
+}
+
+func (l *InMemoryIntentosLimiter) ReiniciarIntentos(ctx context.Context, cedula string) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	delete(l.intentos, cedula)
+	return nil
+}
+
+func (l *InMemoryIntentosLimiter) EstablecerBloqueo(ctx context.Context, cedula string, ttl int) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	bloqueadoHasta := time.Now().Add(time.Duration(ttl) * time.Second)
+	l.bloqueos[cedula] = bloqueadoHasta
+	l.bloqueoDurations[cedula] = time.Duration(ttl) * time.Second
+	delete(l.intentos, cedula)
+
+	return nil
+}
+
 type IntentosLimiter struct {
-	client *redis.Client
+	client         *redis.Client
+	inMemoryLimiter *InMemoryIntentosLimiter
+	useInMemory    bool
 }
 
 func NewIntentosLimiter(client *redis.Client) *IntentosLimiter {
-	return &IntentosLimiter{client: client}
+	return &IntentosLimiter{
+		client:         client,
+		inMemoryLimiter: NewInMemoryIntentosLimiter(),
+		useInMemory:    true, // Usar in-memory por defecto para pruebas
+	}
 }
 
-// IncrementarIntento incrementa el contador de intentos de forma atómica
-// Retorna el nuevo valor del contador
 func (l *IntentosLimiter) IncrementarIntento(ctx context.Context, cedula string) (int, error) {
+	if l.useInMemory {
+		return l.inMemoryLimiter.IncrementarIntento(ctx, cedula)
+	}
+	return l.redisIncrementarIntento(ctx, cedula)
+}
+
+func (l *IntentosLimiter) VerificarBloqueo(ctx context.Context, cedula string) (bool, int, error) {
+	if l.useInMemory {
+		return l.inMemoryLimiter.VerificarBloqueo(ctx, cedula)
+	}
+	return l.redisVerificarBloqueo(ctx, cedula)
+}
+
+func (l *IntentosLimiter) ReiniciarIntentos(ctx context.Context, cedula string) error {
+	if l.useInMemory {
+		return l.inMemoryLimiter.ReiniciarIntentos(ctx, cedula)
+	}
+	return l.redisReiniciarIntentos(ctx, cedula)
+}
+
+func (l *IntentosLimiter) EstablecerBloqueo(ctx context.Context, cedula string, ttl int) error {
+	if l.useInMemory {
+		return l.inMemoryLimiter.EstablecerBloqueo(ctx, cedula, ttl)
+	}
+	return l.redisEstablecerBloqueo(ctx, cedula, ttl)
+}
+
+// Redis implementation methods
+func (l *IntentosLimiter) redisIncrementarIntento(ctx context.Context, cedula string) (int, error) {
 	key := intentosKeyPrefix + cedula
 
-	// Lua script para incrementar y verificar si debe bloquear
 	script := `
 		local key = KEYS[1]
 		local max = tonumber(ARGV[1])
@@ -37,7 +138,6 @@ func (l *IntentosLimiter) IncrementarIntento(ctx context.Context, cedula string)
 		
 		local current = redis.call('INCR', key)
 		
-		-- Si es el primer intento, establecer TTL
 		if current == 1 then
 			redis.call('EXPIRE', key, ttl)
 		end
@@ -53,12 +153,9 @@ func (l *IntentosLimiter) IncrementarIntento(ctx context.Context, cedula string)
 	return result, nil
 }
 
-// VerificarBloqueo verifica si la cédula está bloqueada
-// Retorna (isBlocked, retryAfter, error)
-func (l *IntentosLimiter) VerificarBloqueo(ctx context.Context, cedula string) (bool, int, error) {
+func (l *IntentosLimiter) redisVerificarBloqueo(ctx context.Context, cedula string) (bool, int, error) {
 	key := bloqueoKeyPrefix + cedula
 
-	// Lua script para verificar bloqueo y obtener TTL restante
 	script := `
 		local key = KEYS[1]
 		local exists = redis.call('EXISTS', key)
@@ -82,11 +179,9 @@ func (l *IntentosLimiter) VerificarBloqueo(ctx context.Context, cedula string) (
 	return isBlocked, retryAfter, nil
 }
 
-// ReiniciarIntentos reinicia el contador de intentos (cuando el usuario acierta)
-func (l *IntentosLimiter) ReiniciarIntentos(ctx context.Context, cedula string) error {
+func (l *IntentosLimiter) redisReiniciarIntentos(ctx context.Context, cedula string) error {
 	key := intentosKeyPrefix + cedula
 
-	// Lua script para reiniciar contador de forma atómica
 	script := `
 		local key = KEYS[1]
 		redis.call('DEL', key)
@@ -101,11 +196,9 @@ func (l *IntentosLimiter) ReiniciarIntentos(ctx context.Context, cedula string) 
 	return nil
 }
 
-// EstablecerBloqueo establece un bloqueo para la cédula
-func (l *IntentosLimiter) EstablecerBloqueo(ctx context.Context, cedula string, ttl int) error {
+func (l *IntentosLimiter) redisEstablecerBloqueo(ctx context.Context, cedula string, ttl int) error {
 	key := bloqueoKeyPrefix + cedula
 
-	// Lua script para establecer bloqueo de forma atómica
 	script := `
 		local key = KEYS[1]
 		local ttl = tonumber(ARGV[1])
@@ -113,7 +206,6 @@ func (l *IntentosLimiter) EstablecerBloqueo(ctx context.Context, cedula string, 
 		redis.call('SET', key, '1')
 		redis.call('EXPIRE', key, ttl)
 		
-		-- También limpiar el contador de intentos
 		local intentosKey = KEYS[2]
 		redis.call('DEL', intentosKey)
 		
@@ -165,8 +257,11 @@ func (l *IntentosLimiter) VerificarYBloquearSiNecesario(ctx context.Context, ced
 
 // ObtenerIntentos obtiene el número actual de intentos (para debugging/testing)
 func (l *IntentosLimiter) ObtenerIntentos(ctx context.Context, cedula string) (int, error) {
-	key := intentosKeyPrefix + cedula
+	if l.useInMemory {
+		return l.inMemoryLimiter.ObtenerIntentos(ctx, cedula)
+	}
 
+	key := intentosKeyPrefix + cedula
 	val, err := l.client.Get(ctx, key).Int()
 	if err == redis.Nil {
 		return 0, nil
@@ -176,4 +271,11 @@ func (l *IntentosLimiter) ObtenerIntentos(ctx context.Context, cedula string) (i
 	}
 
 	return val, nil
+}
+
+// ObtenerIntentos obtiene el número actual de intentos (para debugging/testing)
+func (l *InMemoryIntentosLimiter) ObtenerIntentos(ctx context.Context, cedula string) (int, error) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return l.intentos[cedula], nil
 }

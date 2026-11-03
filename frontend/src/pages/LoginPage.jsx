@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
@@ -14,6 +14,8 @@ const LoginPage = () => {
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [bloqueado, setBloqueado] = useState(false);
+  const [retryAfter, setRetryAfter] = useState(0);
   const { login } = useAuth();
   const navigate = useNavigate();
 
@@ -60,8 +62,38 @@ const LoginPage = () => {
     if (result.success) {
       navigate('/formulario');
     } else {
-      setError(result.message);
+      if (result.retryAfter) {
+        setBloqueado(true);
+        setRetryAfter(result.retryAfter);
+        setError('Registro fallido, inténtelo nuevamente en 10 minutos');
+      } else {
+        setError(result.message);
+      }
     }
+  };
+
+  useEffect(() => {
+    if (bloqueado && retryAfter > 0) {
+      const timer = setInterval(() => {
+        setRetryAfter((prev) => {
+          if (prev <= 1) {
+            clearInterval(timer);
+            setBloqueado(false);
+            setError('');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(timer);
+    }
+  }, [bloqueado, retryAfter]);
+
+  const formatTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -70,6 +102,13 @@ const LoginPage = () => {
         <Card title="Iniciar Sesión">
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && <Alert type="error" message={error} />}
+            {bloqueado && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                <p className="text-sm text-yellow-800">
+                  Cuenta bloqueada. Intente nuevamente en: <strong>{formatTime(retryAfter)}</strong>
+                </p>
+              </div>
+            )}
             <Input
               label="Cédula"
               name="cedula"
@@ -78,6 +117,7 @@ const LoginPage = () => {
               onChange={handleChange}
               placeholder="Ingrese su cédula (10 dígitos)"
               error={errors.cedula}
+              disabled={bloqueado}
               required
             />
             <Input
@@ -88,9 +128,10 @@ const LoginPage = () => {
               onChange={handleChange}
               placeholder="Ingrese su contraseña"
               error={errors.password}
+              disabled={bloqueado}
               required
             />
-            <Button type="submit" loading={loading} className="w-full">
+            <Button type="submit" loading={loading} disabled={bloqueado} className="w-full">
               Iniciar Sesión
             </Button>
           </form>

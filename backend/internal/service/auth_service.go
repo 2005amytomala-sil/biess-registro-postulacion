@@ -129,14 +129,22 @@ func (s *AuthService) Login(ctx context.Context, cedula string, password string)
 	postulante, err := s.postulanteRepo.FindByCedula(ctx, cedula)
 	if err != nil {
 		// Incrementar intentos
-		s.intentosLimiter.IncrementarIntento(ctx, cedula)
+		intentos, _ := s.intentosLimiter.IncrementarIntento(ctx, cedula)
+		// Si alcanzó el máximo, establecer bloqueo
+		if intentos >= 3 {
+			s.intentosLimiter.EstablecerBloqueo(ctx, cedula, 600)
+		}
 		return nil, domain.ErrCredencialesInvalidas
 	}
 
 	// Verificar contraseña
 	if err := bcrypt.CompareHashAndPassword([]byte(postulante.PasswordHash), []byte(password)); err != nil {
 		// Incrementar intentos
-		s.intentosLimiter.IncrementarIntento(ctx, cedula)
+		intentos, _ := s.intentosLimiter.IncrementarIntento(ctx, cedula)
+		// Si alcanzó el máximo, establecer bloqueo
+		if intentos >= 3 {
+			s.intentosLimiter.EstablecerBloqueo(ctx, cedula, 600)
+		}
 		return nil, domain.ErrCredencialesInvalidas
 	}
 
