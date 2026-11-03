@@ -38,4 +38,12 @@ var (
 	ErrInternal       = NewAppError("INTERNAL", "Error interno del servidor", nil)
 	ErrValidation      = NewAppError("VALIDATION", "Error de validación", nil)
 	ErrTooManyRequests = NewAppError("TOO_MANY_REQUESTS", "Demasiadas solicitudes", nil)
+
+	// Auth specific errors
+	ErrIdentidadInvalida  = NewAppError("IDENTIDAD_INVALIDA", "La información ingresada es incorrecta", nil)
+	ErrBloqueado          = NewAppError("BLOQUEADO", "Registro fallido, inténtelo nuevamente en 10 minutos", nil)
+	ErrCredencialesInvalidas = NewAppError("CREDENCIALES_INVALIDAS", "Sus credenciales de ingreso son incorrectas", nil)
+	ErrYaRegistrado       = NewAppError("YA_REGISTRADO", "El usuario ya está registrado", nil)
+	ErrPasswordMismatch   = NewAppError("PASSWORD_MISMATCH", "Las contraseñas no coinciden", nil)
+	ErrTokenInvalido      = NewAppError("TOKEN_INVALIDO", "Token inválido o expirado", nil)
 )
