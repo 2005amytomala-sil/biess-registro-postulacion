@@ -116,3 +116,23 @@ func (r *PostulanteRepository) ExistsByCorreo(ctx context.Context, correo string
 
 	return exists, nil
 }
+
+func (r *PostulanteRepository) UpdatePassword(ctx context.Context, id int, passwordHash string) error {
+	query := `
+		UPDATE postulantes
+		SET password_hash = $1
+		WHERE id = $2
+	`
+
+	result, err := r.pg.Pool().Exec(ctx, query, passwordHash, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected := result.RowsAffected()
+	if rowsAffected == 0 {
+		return domain.ErrNotFound
+	}
+
+	return nil
+}

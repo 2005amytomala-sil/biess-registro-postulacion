@@ -49,6 +49,7 @@ type RecuperarRequest struct {
 }
 
 type RestablecerRequest struct {
+	Cedula          string `json:"cedula" binding:"required"`
 	Token           string `json:"token" binding:"required"`
 	Password        string `json:"password" binding:"required,min=8"`
 	ConfirmPassword string `json:"confirm_password" binding:"required"`

@@ -8,6 +8,7 @@ type PostulanteRepository interface {
 	FindByCorreo(ctx context.Context, correo string) (*Postulante, error)
 	ExistsByCedula(ctx context.Context, cedula string) (bool, error)
 	ExistsByCorreo(ctx context.Context, correo string) (bool, error)
+	UpdatePassword(ctx context.Context, id int, passwordHash string) error
 }
 
 type RegistroCivilClient interface {

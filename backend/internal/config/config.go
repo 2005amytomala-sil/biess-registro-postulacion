@@ -12,6 +12,12 @@ type Config struct {
 	Postgres PostgresConfig
 	Redis    RedisConfig
 	CORS     CORSConfig
+	JWT      JWTConfig
+}
+
+type JWTConfig struct {
+	SecretKey     string
+	ExpirationHrs int
 }
 
 type CORSConfig struct {
@@ -59,6 +65,10 @@ func Load() (*Config, error) {
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: getEnvSlice("CORS_ALLOWED_ORIGINS", []string{"http://localhost:5173", "http://localhost:3000"}),
+		},
+		JWT: JWTConfig{
+			SecretKey:     getEnv("JWT_SECRET_KEY", "secret-key-change-in-production"),
+			ExpirationHrs: getEnvInt("JWT_EXPIRATION_HRS", 24),
 		},
 	}
 
