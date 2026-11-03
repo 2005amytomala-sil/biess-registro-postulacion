@@ -465,3 +465,354 @@ ON CONFLICT (nombre) DO NOTHING;
 -- ============================================================================
 -- FIN DEL BLOQUE 2: Países y Provincias
 -- ============================================================================
+
+-- ============================================================================
+-- BLOQUE 3: Cantones por Provincia (según requerimiento.pdf)
+-- ============================================================================
+
+-- ----------------------------------------------------------------------------
+-- Azuay (provincia_id=1)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(1, 'Cuenca'),
+(1, 'Gualaceo'),
+(1, 'Chordeleg'),
+(1, 'Sígsig'),
+(1, 'Girón'),
+(1, 'Santa Isabel'),
+(1, 'Pucará'),
+(1, 'Camilo Ponce Enríquez')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Bolívar (provincia_id=2)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(2, 'Guaranda'),
+(2, 'Chillanes'),
+(2, 'Chimbo'),
+(2, 'Echeandía'),
+(2, 'San Miguel'),
+(2, 'Caluma'),
+(2, 'Las Naves')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Cañar (provincia_id=3)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(3, 'Azogues'),
+(3, 'Biblián'),
+(3, 'Cañar'),
+(3, 'Déleg'),
+(3, 'El Tambo'),
+(3, 'Suscal'),
+(3, 'La Troncal')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Carchi (provincia_id=4)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(4, 'Tulcán'),
+(4, 'Bolívar'),
+(4, 'Espejo'),
+(4, 'Mira'),
+(4, 'Montúfar'),
+(4, 'San Pedro de Huaca')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Chimborazo (provincia_id=5)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(5, 'Riobamba'),
+(5, 'Alausí'),
+(5, 'Colta'),
+(5, 'Chunchi'),
+(5, 'Guamote'),
+(5, 'Guano'),
+(5, 'Pallatanga'),
+(5, 'Penipe'),
+(5, 'Cumandá')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Cotopaxi (provincia_id=6)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(6, 'Latacunga'),
+(6, 'La Maná'),
+(6, 'Pangua'),
+(6, 'Pujilí'),
+(6, 'Salcedo'),
+(6, 'Saquisilí'),
+(6, 'Sigchos')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- El Oro (provincia_id=7)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(7, 'Machala'),
+(7, 'Arenillas'),
+(7, 'Atahualpa'),
+(7, 'Balsas'),
+(7, 'Chilla'),
+(7, 'El Guabo'),
+(7, 'Huaquillas'),
+(7, 'Las Lajas'),
+(7, 'Marcabelí'),
+(7, 'Pasaje'),
+(7, 'Piñas'),
+(7, 'Portovelo'),
+(7, 'Santa Rosa'),
+(7, 'Zaruma')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Esmeraldas (provincia_id=8)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(8, 'Esmeraldas'),
+(8, 'Atacames'),
+(8, 'Eloy Alfaro'),
+(8, 'Muisne'),
+(8, 'Quinindé'),
+(8, 'Rioverde'),
+(8, 'San Lorenzo')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Galápagos (provincia_id=9)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(9, 'San Cristóbal'),
+(9, 'Isabela'),
+(9, 'Santa Cruz')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Guayas (provincia_id=10)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(10, 'Guayaquil'),
+(10, 'Durán'),
+(10, 'Milagro'),
+(10, 'Samborondón'),
+(10, 'Daule'),
+(10, 'Playas'),
+(10, 'Balzar'),
+(10, 'Colimes'),
+(10, 'El Empalme'),
+(10, 'El Triunfo'),
+(10, 'Isidro Ayora'),
+(10, 'Lomas de Sargentillo'),
+(10, 'Naranjal'),
+(10, 'Naranjito'),
+(10, 'Nobol'),
+(10, 'Pedro Carbo'),
+(10, 'Salitre'),
+(10, 'Simón Bolívar'),
+(10, 'Yaguachi')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Imbabura (provincia_id=11)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(11, 'Ibarra'),
+(11, 'Antonio Ante'),
+(11, 'Cotacachi'),
+(11, 'Otavalo'),
+(11, 'Pimampiro'),
+(11, 'San Miguel de Urcuquí')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Loja (provincia_id=12)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(12, 'Loja'),
+(12, 'Calvas'),
+(12, 'Catamayo'),
+(12, 'Celica'),
+(12, 'Chaguarpamba'),
+(12, 'Espíndola'),
+(12, 'Gonzanamá'),
+(12, 'Macará'),
+(12, 'Paltas'),
+(12, 'Puyango'),
+(12, 'Saraguro'),
+(12, 'Sozoranga'),
+(12, 'Zapotillo')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Los Ríos (provincia_id=13)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(13, 'Babahoyo'),
+(13, 'Baba'),
+(13, 'Buena Fe'),
+(13, 'Mocache'),
+(13, 'Montalvo'),
+(13, 'Palenque'),
+(13, 'Puebloviejo'),
+(13, 'Quevedo'),
+(13, 'Urdaneta'),
+(13, 'Ventanas'),
+(13, 'Vinces'),
+(13, 'Valencia')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Manabí (provincia_id=14)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(14, 'Portoviejo'),
+(14, 'Manta'),
+(14, 'Chone'),
+(14, 'Bolívar'),
+(14, 'El Carmen'),
+(14, 'Flavio Alfaro'),
+(14, 'Jipijapa'),
+(14, 'Junín'),
+(14, 'Montecristi'),
+(14, 'Paján'),
+(14, 'Pichincha'),
+(14, 'Rocafuerte'),
+(14, 'Santa Ana'),
+(14, 'Sucre'),
+(14, 'Tosagua'),
+(14, '24 de Mayo'),
+(14, 'Pedernales'),
+(14, 'Olmedo'),
+(14, 'Puerto López'),
+(14, 'Jama'),
+(14, 'Jaramijó'),
+(14, 'San Vicente')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Morona Santiago (provincia_id=15)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(15, 'Morona'),
+(15, 'Gualaquiza'),
+(15, 'Limón Indanza'),
+(15, 'Palora'),
+(15, 'San Juan Bosco'),
+(15, 'Santiago'),
+(15, 'Sucúa'),
+(15, 'Taisha'),
+(15, 'Tiwintza')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Napo (provincia_id=16)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(16, 'Tena'),
+(16, 'Archidona'),
+(16, 'Carlos Julio Arosemena Tola'),
+(16, 'El Chaco'),
+(16, 'Quijos')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Orellana (provincia_id=17)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(17, 'Francisco de Orellana'),
+(17, 'Aguarico'),
+(17, 'La Joya de los Sachas'),
+(17, 'Loreto')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Pastaza (provincia_id=18)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(18, 'Pastaza'),
+(18, 'Arajuno'),
+(18, 'Mera'),
+(18, 'Santa Clara')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Pichincha (provincia_id=19)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(19, 'Quito'),
+(19, 'Cayambe'),
+(19, 'Mejía'),
+(19, 'Pedro Moncayo'),
+(19, 'Pedro Vicente Maldonado'),
+(19, 'Puerto Quito'),
+(19, 'Rumiñahui'),
+(19, 'San Miguel de los Bancos')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Santa Elena (provincia_id=20)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(20, 'Santa Elena'),
+(20, 'La Libertad')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Santo Domingo de los Tsáchilas (provincia_id=21)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(21, 'La Concordia'),
+(21, 'Santo Domingo')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Sucumbíos (provincia_id=22)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(22, 'Cascales'),
+(22, 'Cuyabeno'),
+(22, 'Gonzalo Pizarro'),
+(22, 'Lago Agrio'),
+(22, 'Putumayo'),
+(22, 'Shushufindi'),
+(22, 'Sucumbíos')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Tungurahua (provincia_id=23)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(23, 'Ambato'),
+(23, 'Baños de Agua Santa'),
+(23, 'Cevallos'),
+(23, 'Mocha'),
+(23, 'Patate'),
+(23, 'Pelileo'),
+(23, 'Píllaro'),
+(23, 'Quero'),
+(23, 'Tisaleo')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ----------------------------------------------------------------------------
+-- Zamora Chinchipe (provincia_id=24)
+-- ----------------------------------------------------------------------------
+INSERT INTO cantones (provincia_id, nombre) VALUES
+(24, 'Centinela del Cóndor'),
+(24, 'Chinchipe'),
+(24, 'El Pangui'),
+(24, 'Nangaritza'),
+(24, 'Palanda'),
+(24, 'Paquisha'),
+(24, 'Yacuambi'),
+(24, 'Yantzaza'),
+(24, 'Zamora')
+ON CONFLICT (provincia_id, nombre) DO NOTHING;
+
+-- ============================================================================
+-- FIN DEL BLOQUE 3: Cantones
+-- ============================================================================
