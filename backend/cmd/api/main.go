@@ -49,6 +49,11 @@ func main() {
 	redisClient := redis.New(&cfg.Redis)
 	defer redisClient.Close()
 
+	// Check Redis connection
+	if err := redisClient.CheckConnection(context.Background()); err != nil {
+		log.Fatalf("Error connecting to redis: %v", err)
+	}
+
 	// Initialize dependencies
 	postulanteRepo := repository.NewPostulanteRepository(pg)
 	registroCivil := mocks.NewRegistroCivilMock()

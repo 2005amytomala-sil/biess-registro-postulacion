@@ -3,6 +3,7 @@ package redis
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
 	"github.com/redis/go-redis/v9"
@@ -25,119 +26,64 @@ func NewIntentosLimiter(client *redis.Client) *IntentosLimiter {
 }
 
 // IncrementarIntento incrementa el contador de intentos de forma atómica
-// Retorna el nuevo valor del contador
 func (l *IntentosLimiter) IncrementarIntento(ctx context.Context, cedula string) (int, error) {
 	key := intentosKeyPrefix + cedula
-
-	// Lua script para incrementar y verificar si debe bloquear
-	script := `
-		local key = KEYS[1]
-		local max = tonumber(ARGV[1])
-		local ttl = tonumber(ARGV[2])
-		
-		local current = redis.call('INCR', key)
-		
-		-- Si es el primer intento, establecer TTL
-		if current == 1 then
-			redis.call('EXPIRE', key, ttl)
-		end
-		
-		return current
-	`
-
-	result, err := l.client.Eval(ctx, script, []string{key}, intentosMaximos, intentosTTLSeconds).Int()
+	result, err := l.client.Incr(ctx, key).Result()
 	if err != nil {
 		return 0, fmt.Errorf("error incrementando intentos: %w", err)
 	}
-
-	return result, nil
+	// Si es el primer intento, establecer TTL
+	if result == 1 {
+		l.client.Expire(ctx, key, time.Duration(intentosTTLSeconds)*time.Second)
+	}
+	return int(result), nil
 }
 
 // VerificarBloqueo verifica si la cédula está bloqueada
-// Retorna (isBlocked, retryAfter, error)
 func (l *IntentosLimiter) VerificarBloqueo(ctx context.Context, cedula string) (bool, int, error) {
 	key := bloqueoKeyPrefix + cedula
-
-	// Lua script para verificar bloqueo y obtener TTL restante
-	script := `
-		local key = KEYS[1]
-		local exists = redis.call('EXISTS', key)
-		
-		if exists == 1 then
-			local ttl = redis.call('TTL', key)
-			return {1, ttl}
-		else
-			return {0, 0}
-		end
-	`
-
-	result, err := l.client.Eval(ctx, script, []string{key}).Slice()
+	exists, err := l.client.Exists(ctx, key).Result()
 	if err != nil {
 		return false, 0, fmt.Errorf("error verificando bloqueo: %w", err)
 	}
-
-	isBlocked := result[0].(int64) == 1
-	retryAfter := int(result[1].(int64))
-
-	return isBlocked, retryAfter, nil
+	if exists == 0 {
+		return false, 0, nil
+	}
+	ttl, err := l.client.TTL(ctx, key).Result()
+	if err != nil {
+		return false, 0, fmt.Errorf("error obteniendo TTL: %w", err)
+	}
+	// Convertir a segundos
+	return true, int(ttl.Seconds()), nil
 }
 
-// ReiniciarIntentos reinicia el contador de intentos (cuando el usuario acierta)
+// ReiniciarIntentos reinicia el contador de intentos
 func (l *IntentosLimiter) ReiniciarIntentos(ctx context.Context, cedula string) error {
 	key := intentosKeyPrefix + cedula
-
-	// Lua script para reiniciar contador de forma atómica
-	script := `
-		local key = KEYS[1]
-		redis.call('DEL', key)
-		return 1
-	`
-
-	_, err := l.client.Eval(ctx, script, []string{key}).Result()
-	if err != nil {
-		return fmt.Errorf("error reiniciando intentos: %w", err)
-	}
-
-	return nil
+	return l.client.Del(ctx, key).Err()
 }
 
 // EstablecerBloqueo establece un bloqueo para la cédula
 func (l *IntentosLimiter) EstablecerBloqueo(ctx context.Context, cedula string, ttl int) error {
 	key := bloqueoKeyPrefix + cedula
-
-	// Lua script para establecer bloqueo de forma atómica
-	script := `
-		local key = KEYS[1]
-		local ttl = tonumber(ARGV[1])
-		
-		redis.call('SET', key, '1')
-		redis.call('EXPIRE', key, ttl)
-		
-		-- También limpiar el contador de intentos
-		local intentosKey = KEYS[2]
-		redis.call('DEL', intentosKey)
-		
-		return 1
-	`
-
 	intentosKey := intentosKeyPrefix + cedula
-	_, err := l.client.Eval(ctx, script, []string{key, intentosKey}, ttl).Result()
+	pipe := l.client.Pipeline()
+	pipe.Set(ctx, key, "1", 0)
+	pipe.Expire(ctx, key, time.Duration(ttl)*time.Second)
+	pipe.Del(ctx, intentosKey)
+	_, err := pipe.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("error estableciendo bloqueo: %w", err)
 	}
-
 	return nil
 }
 
 // VerificarYBloquearSiNecesario verifica intentos y bloquea si es necesario
-// Método de conveniencia que combina verificación de bloqueo e incremento
 func (l *IntentosLimiter) VerificarYBloquearSiNecesario(ctx context.Context, cedula string) error {
-	// Primero verificar si ya está bloqueado
 	isBlocked, retryAfter, err := l.VerificarBloqueo(ctx, cedula)
 	if err != nil {
 		return err
 	}
-
 	if isBlocked {
 		return &domain.AppError{
 			Code:    domain.ErrBloqueado.Code,
@@ -145,28 +91,22 @@ func (l *IntentosLimiter) VerificarYBloquearSiNecesario(ctx context.Context, ced
 			Err:     domain.ErrBloqueado,
 		}
 	}
-
-	// Incrementar intentos
 	intentos, err := l.IncrementarIntento(ctx, cedula)
 	if err != nil {
 		return err
 	}
-
-	// Si alcanzó el máximo, establecer bloqueo
 	if intentos >= intentosMaximos {
 		if err := l.EstablecerBloqueo(ctx, cedula, bloqueoTTLSeconds); err != nil {
 			return err
 		}
 		return domain.ErrBloqueado
 	}
-
 	return nil
 }
 
 // ObtenerIntentos obtiene el número actual de intentos (para debugging/testing)
 func (l *IntentosLimiter) ObtenerIntentos(ctx context.Context, cedula string) (int, error) {
 	key := intentosKeyPrefix + cedula
-
 	val, err := l.client.Get(ctx, key).Int()
 	if err == redis.Nil {
 		return 0, nil
@@ -174,6 +114,5 @@ func (l *IntentosLimiter) ObtenerIntentos(ctx context.Context, cedula string) (i
 	if err != nil {
 		return 0, fmt.Errorf("error obteniendo intentos: %w", err)
 	}
-
 	return val, nil
 }

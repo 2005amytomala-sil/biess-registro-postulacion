@@ -57,6 +57,18 @@ func httpStatusFromAppError(err *domain.AppError) int {
 		return http.StatusBadRequest
 	case domain.ErrTooManyRequests.Code:
 		return http.StatusTooManyRequests
+	case "YA_REGISTRADO":
+		return http.StatusConflict
+	case "IDENTIDAD_INVALIDA":
+		return http.StatusBadRequest
+	case "CREDENCIALES_INVALIDAS":
+		return http.StatusUnauthorized
+	case "PASSWORD_MISMATCH":
+		return http.StatusBadRequest
+	case "TOKEN_INVALIDO":
+		return http.StatusUnauthorized
+	case "BLOQUEADO":
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}
