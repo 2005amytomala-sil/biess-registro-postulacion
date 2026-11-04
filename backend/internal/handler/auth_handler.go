@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/middleware"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -125,5 +126,25 @@ func (h *AuthHandler) Restablecer(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Contraseña restablecida exitosamente",
+	})
+}
+
+// Me GET /api/v1/auth/me devuelve los datos del usuario autenticado
+func (h *AuthHandler) Me(c *gin.Context) {
+	postulanteID, ok := middleware.PostulanteIDFrom(c)
+	if !ok {
+		c.Error(domain.ErrNoAutorizado)
+		return
+	}
+
+	cedula, ok := middleware.CedulaFrom(c)
+	if !ok {
+		c.Error(domain.ErrNoAutorizado)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"postulante_id": postulanteID,
+		"cedula":        cedula,
 	})
 }

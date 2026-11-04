@@ -129,3 +129,11 @@ func (m *RegistroCivilMock) VerificarIdentidad(ctx context.Context, cedula strin
 
 	return data, nil
 }
+
+func (m *RegistroCivilMock) ObtenerDatos(ctx context.Context, cedula string) (*domain.RegistroCivilData, error) {
+	data, exists := m.dataset[cedula]
+	if !exists {
+		return nil, domain.ErrIdentidadInvalida
+	}
+	return data, nil
+}
