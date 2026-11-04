@@ -46,4 +46,12 @@ var (
 	ErrYaRegistrado       = NewAppError("YA_REGISTRADO", "El usuario ya está registrado", nil)
 	ErrPasswordMismatch   = NewAppError("PASSWORD_MISMATCH", "Las contraseñas no coinciden", nil)
 	ErrTokenInvalido      = NewAppError("TOKEN_INVALIDO", "Token inválido o expirado", nil)
+
+	// Postulacion specific errors
+	ErrNacionalidadNoPermitida      = NewAppError("NACIONALIDAD_NO_PERMITIDA", "Solo se permite nacionalidad ecuatoriana", nil)
+	ErrCantonNoPerteneceAProvincia  = NewAppError("CANTON_NO_PERTENECE_PROVINCIA", "El cantón no pertenece a la provincia seleccionada", nil)
+	ErrSectorNoValido               = NewAppError("SECTOR_NO_VALIDO", "Sector no válido para postulación", nil)
+	ErrListaFamiliaresVacia         = NewAppError("LISTA_FAMILIARES_VACIA", "Debe agregar al menos un familiar", nil)
+	ErrFechaFinAnteriorInicio       = NewAppError("FECHA_FIN_ANTERIOR_INICIO", "La fecha de fin no puede ser anterior a la fecha de inicio", nil)
+	ErrDescripcionExcedeLongitud    = NewAppError("DESCRIPCION_EXCEDE_LONGITUD", "La descripción no puede exceder 1000 caracteres", nil)
 )
