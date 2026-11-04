@@ -6,6 +6,9 @@ import Input from '../components/Input';
 import Select from '../components/Select';
 import Alert from '../components/Alert';
 import Card from '../components/Card';
+import AuthLayout from '../components/AuthLayout';
+import CuentaRegresiva from '../components/CuentaRegresiva';
+import useCuentaRegresiva from '../hooks/useCuentaRegresiva';
 
 const RecuperarPage = () => {
   const [paso, setPaso] = useState(1);
@@ -24,6 +27,7 @@ const RecuperarPage = () => {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const { recuperarPassword, restablecerPassword } = useAuth();
+  const { bloqueado, restante, iniciar: iniciarBloqueo } = useCuentaRegresiva();
   const navigate = useNavigate();
 
   const validateCedula = (cedula) => {
@@ -40,7 +44,7 @@ const RecuperarPage = () => {
 
   const validateCodigoDactilar = (codigo) => {
     if (!codigo) return 'El código dactilar es requerido';
-    if (!/^[A-Z]\d{4}[A-Z]\d{4}$/i.test(codigo.trim())) return 'Use 10 caracteres: letras en la posición 1 y 6, y números en las demás';
+    if (!/^\d{10}$/.test(codigo)) return 'El código dactilar debe tener exactamente 10 dígitos';
     return '';
   };
 
@@ -116,6 +120,7 @@ const RecuperarPage = () => {
       setPaso(2);
     } else {
       setError(result.message);
+      if (result.retryAfter) iniciarBloqueo(result.retryAfter);
     }
   };
 
@@ -154,15 +159,20 @@ const RecuperarPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full">
+    <AuthLayout>
         <Card title={paso === 1 ? 'Recuperar Contraseña' : 'Restablecer Contraseña'}>
-          {error && <Alert type="error" message={error} />}
-          {message && <Alert type="success" message={message} />}
+          <div className="mb-5 space-y-3 empty:hidden">
+            {bloqueado ? (
+              <CuentaRegresiva mensaje={error} restante={restante} />
+            ) : (
+              error && <Alert type="error" message={error} />
+            )}
+            {message && <Alert type="success" message={message} />}
+          </div>
           
           {paso === 1 ? (
-            <form onSubmit={handleRecuperar} className="space-y-6">
-              <p className="text-sm text-gray-600">
+            <form onSubmit={handleRecuperar} className="space-y-5">
+              <p className="text-sm text-slate-600">
                 Ingrese su cédula y el método de validación para recuperar su contraseña.
               </p>
               <Input
@@ -183,7 +193,7 @@ const RecuperarPage = () => {
                 onChange={handleChange}
                 options={[
                   { value: 'fecha', label: 'Fecha de expedición (DD/MM/AAAA)' },
-                  { value: 'codigo', label: 'Código dactilar (10 caracteres)' },
+                  { value: 'codigo', label: 'Código dactilar (10 dígitos)' },
                 ]}
               />
 
@@ -205,19 +215,21 @@ const RecuperarPage = () => {
                   type="text"
                   value={formData.codigoDactilar}
                   onChange={handleChange}
-                  placeholder="Ingrese código dactilar (10 caracteres)"
+                  placeholder="Ingrese código dactilar (10 dígitos)"
+                  inputMode="numeric"
+                  maxLength={10}
                   error={errors.codigoDactilar}
                   required
                 />
               )}
 
-              <Button type="submit" loading={loading} className="w-full">
+              <Button type="submit" loading={loading} disabled={bloqueado} className="w-full">
                 Enviar Token
               </Button>
             </form>
           ) : (
-            <form onSubmit={handleRestablecer} className="space-y-6">
-              <p className="text-sm text-gray-600">
+            <form onSubmit={handleRestablecer} className="space-y-5">
+              <p className="text-sm text-slate-600">
                 Ingrese el token de recuperación y su nueva contraseña.
               </p>
               <Input
@@ -264,13 +276,12 @@ const RecuperarPage = () => {
           )}
 
           <div className="mt-6 text-center">
-            <Link to="/login" className="text-sm text-blue-600 hover:text-blue-500">
+            <Link to="/login" className="rounded text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline">
               Volver a Iniciar Sesión
             </Link>
           </div>
         </Card>
-      </div>
-    </div>
+    </AuthLayout>
   );
 };
 

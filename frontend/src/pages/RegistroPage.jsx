@@ -6,6 +6,9 @@ import Input from '../components/Input';
 import Select from '../components/Select';
 import Alert from '../components/Alert';
 import Card from '../components/Card';
+import AuthLayout from '../components/AuthLayout';
+import CuentaRegresiva from '../components/CuentaRegresiva';
+import useCuentaRegresiva from '../hooks/useCuentaRegresiva';
 
 const RegistroPage = () => {
   const [paso, setPaso] = useState(1);
@@ -23,7 +26,16 @@ const RegistroPage = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { verificarIdentidad, register } = useAuth();
+  const { bloqueado, restante, iniciar: iniciarBloqueo } = useCuentaRegresiva();
   const navigate = useNavigate();
+
+  const manejarError = (result) => {
+    setError(result.message);
+    if (result.retryAfter) {
+      iniciarBloqueo(result.retryAfter);
+      setPaso(1);
+    }
+  };
 
   const validateCedula = (cedula) => {
     if (!cedula) return 'La cédula es requerida';
@@ -39,7 +51,7 @@ const RegistroPage = () => {
 
   const validateCodigoDactilar = (codigo) => {
     if (!codigo) return 'El código dactilar es requerido';
-    if (!/^[A-Z]\d{4}[A-Z]\d{4}$/i.test(codigo.trim())) return 'Use 10 caracteres: letras en la posición 1 y 6, y números en las demás';
+    if (!/^\d{10}$/.test(codigo)) return 'El código dactilar debe tener exactamente 10 dígitos';
     return '';
   };
 
@@ -122,7 +134,7 @@ const RegistroPage = () => {
       setIdentidadData(result.data);
       setPaso(2);
     } else {
-      setError(result.message);
+      manejarError(result);
     }
   };
 
@@ -147,6 +159,8 @@ const RegistroPage = () => {
     setLoading(true);
     const result = await register({
       cedula: formData.cedula,
+      fecha_expedicion: formData.tipoValidacion === 'fecha' ? formData.fechaExpedicion : '',
+      codigo_dactilar: formData.tipoValidacion === 'codigo' ? formData.codigoDactilar : '',
       correo: formData.correo,
       password: formData.password,
       confirm_password: formData.confirmPassword,
@@ -154,24 +168,28 @@ const RegistroPage = () => {
     setLoading(false);
 
     if (result.success) {
-      navigate('/formulario');
+      navigate('/login', {
+        replace: true,
+        state: { mensaje: 'Registro exitoso. Inicie sesión con su cédula y contraseña.' },
+      });
     } else {
-      setError(result.message);
+      manejarError(result);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">BIESS</h1>
-          <p className="text-gray-600 mt-2">Sistema de Registro y Postulación</p>
-        </div>
+    <AuthLayout>
         <Card title={paso === 1 ? 'Verificar Identidad' : 'Registro de Usuario'}>
-          {error && <Alert type="error" message={error} />}
+          <div className="mb-5 space-y-3 empty:hidden">
+            {bloqueado ? (
+              <CuentaRegresiva mensaje={error} restante={restante} />
+            ) : (
+              error && <Alert type="error" message={error} />
+            )}
+          </div>
           
           {paso === 1 ? (
-            <form onSubmit={handleVerificarIdentidad} className="space-y-6">
+            <form onSubmit={handleVerificarIdentidad} className="space-y-5">
               <Input
                 label="Cédula"
                 name="cedula"
@@ -189,7 +207,7 @@ const RegistroPage = () => {
                 onChange={handleChange}
                 options={[
                   { value: 'fecha', label: 'Fecha de expedición (DD/MM/AAAA)' },
-                  { value: 'codigo', label: 'Código dactilar (10 caracteres)' },
+                  { value: 'codigo', label: 'Código dactilar (10 dígitos)' },
                 ]}
               />
               {formData.tipoValidacion === 'fecha' ? (
@@ -210,23 +228,35 @@ const RegistroPage = () => {
                   type="text"
                   value={formData.codigoDactilar}
                   onChange={handleChange}
-                  placeholder="Ingrese código dactilar (10 caracteres)"
+                  placeholder="Ingrese código dactilar (10 dígitos)"
+                  inputMode="numeric"
+                  maxLength={10}
                   error={errors.codigoDactilar}
                   required
                 />
               )}
-              <Button type="submit" loading={loading} className="w-full">
+              <Button type="submit" loading={loading} disabled={bloqueado} className="w-full">
                 Verificar Identidad
               </Button>
             </form>
           ) : (
-            <form onSubmit={handleRegistro} className="space-y-6">
+            <form onSubmit={handleRegistro} className="space-y-5">
               {identidadData && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
-                  <p className="text-sm text-green-800 font-medium">Identidad verificada:</p>
-                  <p className="text-sm text-green-700"><strong>Nombre:</strong> {identidadData.nombres} {identidadData.apellidos}</p>
-                  <p className="text-sm text-green-700"><strong>Cédula:</strong> {identidadData.cedula}</p>
-                  <p className="text-sm text-green-700"><strong>Nacionalidad:</strong> {identidadData.nacionalidad}</p>
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4">
+                  <p className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-900">
+                    <svg className="h-4 w-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                    Identidad verificada en el Registro Civil
+                  </p>
+                  <dl className="grid grid-cols-1 gap-x-4 gap-y-1 text-sm sm:grid-cols-[auto_1fr]">
+                    <dt className="text-emerald-700">Nombre</dt>
+                    <dd className="font-medium text-emerald-950">{identidadData.nombres} {identidadData.apellidos}</dd>
+                    <dt className="text-emerald-700">Cédula</dt>
+                    <dd className="font-medium text-emerald-950">{identidadData.cedula}</dd>
+                    <dt className="text-emerald-700">Nacionalidad</dt>
+                    <dd className="font-medium text-emerald-950">{identidadData.nacionalidad}</dd>
+                  </dl>
                 </div>
               )}
               <Input
@@ -259,7 +289,7 @@ const RegistroPage = () => {
                 error={errors.confirmPassword}
                 required
               />
-              <Button type="submit" loading={loading} className="w-full">
+              <Button type="submit" loading={loading} disabled={bloqueado} className="w-full">
                 Registrarse
               </Button>
               <Button type="button" onClick={() => setPaso(1)} className="w-full" variant="secondary">
@@ -268,16 +298,15 @@ const RegistroPage = () => {
             </form>
           )}
           <div className="mt-6 text-center">
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-slate-600">
               ¿Ya tiene cuenta?{' '}
-              <Link to="/login" className="text-blue-600 hover:text-blue-500 font-medium">
+              <Link to="/login" className="rounded font-medium text-blue-700 hover:text-blue-900 hover:underline">
                 Inicie Sesión
               </Link>
             </span>
           </div>
         </Card>
-      </div>
-    </div>
+    </AuthLayout>
   );
 };
 

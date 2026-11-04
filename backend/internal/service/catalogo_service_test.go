@@ -45,6 +45,14 @@ func (m *MockCatalogoRepository) ExisteProvincia(ctx context.Context, provinciaI
 	return args.Bool(0), args.Error(1)
 }
 
+func (m *MockCatalogoRepository) ObtenerPaisPorID(ctx context.Context, paisID int) (*domain.Pais, error) {
+	args := m.Called(ctx, paisID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*domain.Pais), args.Error(1)
+}
+
 type MockCatalogoCache struct {
 	mock.Mock
 }
@@ -132,6 +140,7 @@ func TestObtenerPaises_CacheMiss(t *testing.T) {
 	// Cache miss: cache retorna error, repository retorna datos
 	mockCache.On("ObtenerPaises", ctx).Return(nil, assert.AnError)
 	mockRepo.On("ObtenerPaises", ctx).Return(paises, nil)
+	mockCache.On("GuardarPaises", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 	// No verificamos GuardarPaises porque se ejecuta en background
 
 	result, err := service.ObtenerPaises(ctx)
@@ -157,6 +166,7 @@ func TestObtenerPaises_RedisCaido(t *testing.T) {
 	// Redis caído: cache retorna error, degrada a DB
 	mockCache.On("ObtenerPaises", ctx).Return(nil, assert.AnError)
 	mockRepo.On("ObtenerPaises", ctx).Return(paises, nil)
+	mockCache.On("GuardarPaises", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	result, err := service.ObtenerPaises(ctx)
 
@@ -201,6 +211,7 @@ func TestObtenerProvincias_CacheMiss(t *testing.T) {
 
 	mockCache.On("ObtenerProvincias", ctx).Return(nil, assert.AnError)
 	mockRepo.On("ObtenerProvincias", ctx).Return(provincias, nil)
+	mockCache.On("GuardarProvincias", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	result, err := service.ObtenerProvincias(ctx)
 
@@ -246,6 +257,7 @@ func TestObtenerCantonesPorProvincia_CacheMiss(t *testing.T) {
 	mockRepo.On("ExisteProvincia", ctx, 19).Return(true, nil)
 	mockCache.On("ObtenerCantonesPorProvincia", ctx, 19).Return(nil, assert.AnError)
 	mockRepo.On("ObtenerCantonesPorProvincia", ctx, 19).Return(cantones, nil)
+	mockCache.On("GuardarCantonesPorProvincia", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	result, err := service.ObtenerCantonesPorProvincia(ctx, 19)
 
@@ -284,6 +296,7 @@ func TestObtenerCantonesPorProvincia_RedisCaido(t *testing.T) {
 	mockRepo.On("ExisteProvincia", ctx, 19).Return(true, nil)
 	mockCache.On("ObtenerCantonesPorProvincia", ctx, 19).Return(nil, assert.AnError)
 	mockRepo.On("ObtenerCantonesPorProvincia", ctx, 19).Return(cantones, nil)
+	mockCache.On("GuardarCantonesPorProvincia", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	result, err := service.ObtenerCantonesPorProvincia(ctx, 19)
 

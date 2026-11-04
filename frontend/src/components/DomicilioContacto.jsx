@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Button from './Button';
 import Card from './Card';
 import Input from './Input';
 import Select from './Select';
@@ -6,144 +7,132 @@ import Spinner from './Spinner';
 import Alert from './Alert';
 import { obtenerPaises, obtenerProvincias, obtenerCantonesPorProvincia } from '../services/postulacionApi';
 
-const DomicilioContacto = ({ datos, onChange, onSave, saving, error }) => {
+const REGEX_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const validarCampo = (field, value) => {
+  switch (field) {
+    case 'celular':
+      return /^\d{10}$/.test(value || '') ? '' : 'El celular debe tener exactamente 10 dígitos';
+    case 'correo_1':
+      return value && REGEX_CORREO.test(value) ? '' : 'Ingrese un correo válido';
+    case 'correo_2':
+      return !value || REGEX_CORREO.test(value) ? '' : 'Ingrese un correo válido';
+    default:
+      return '';
+  }
+};
+
+const SIN_ERRORES = {};
+
+const DomicilioContacto = ({ datos, onChange, onSave, saving, serverErrors = SIN_ERRORES }) => {
   const [paises, setPaises] = useState([]);
   const [provincias, setProvincias] = useState([]);
   const [cantones, setCantones] = useState([]);
   const [loadingPaises, setLoadingPaises] = useState(false);
   const [loadingProvincias, setLoadingProvincias] = useState(false);
   const [loadingCantones, setLoadingCantones] = useState(false);
+  const [errorCatalogo, setErrorCatalogo] = useState('');
   const [errors, setErrors] = useState({});
+  const [erroresServidor, setErroresServidor] = useState(serverErrors);
+
+  // Los errores del servidor llegan por campo tras cada guardado
+  useEffect(() => {
+    setErroresServidor(serverErrors);
+  }, [serverErrors]);
+
+  // Ecuador se identifica por nombre en el catálogo (no por un id fijo)
+  const ecuadorId = paises.find((p) => p.nombre?.trim().toLowerCase() === 'ecuador')?.id ?? 1;
+  const esEcuador = datos.pais_id === ecuadorId;
 
   // Cargar países al montar
   useEffect(() => {
     cargarPaises();
   }, []);
 
-  // Cargar provincias cuando se selecciona Ecuador
+  // Las cargas de catálogo solo traen opciones; nunca modifican los datos del formulario
   useEffect(() => {
-    if (datos.pais_id === 1) {
+    if (esEcuador) {
       cargarProvincias();
     } else {
       setProvincias([]);
-      setCantones([]);
-      // Limpiar provincia y cantón si no es Ecuador
-      if (onChange) {
-        onChange({ ...datos, provincia_id: null, canton_id: null });
-      }
     }
-  }, [datos.pais_id]);
+  }, [esEcuador]);
 
-  // Cargar cantones cuando se selecciona provincia
   useEffect(() => {
-    if (datos.provincia_id) {
+    if (esEcuador && datos.provincia_id) {
       cargarCantones(datos.provincia_id);
     } else {
       setCantones([]);
-      // Limpiar cantón si no hay provincia
-      if (onChange) {
-        onChange({ ...datos, canton_id: null });
-      }
     }
-  }, [datos.provincia_id]);
+  }, [esEcuador, datos.provincia_id]);
 
-  const cargarPaises = async () => {
-    setLoadingPaises(true);
-    const result = await obtenerPaises();
+  const cargarCatalogo = async (cargar, setLoading, setDatos) => {
+    setLoading(true);
+    const result = await cargar();
     if (result.success) {
-      setPaises(result.data);
+      setDatos(result.data || []);
+    } else {
+      setErrorCatalogo(result.message);
     }
-    setLoadingPaises(false);
+    setLoading(false);
   };
 
-  const cargarProvincias = async () => {
-    setLoadingProvincias(true);
-    const result = await obtenerProvincias();
-    if (result.success) {
-      setProvincias(result.data);
-    }
-    setLoadingProvincias(false);
-  };
+  const cargarPaises = () => cargarCatalogo(obtenerPaises, setLoadingPaises, setPaises);
+  const cargarProvincias = () => cargarCatalogo(obtenerProvincias, setLoadingProvincias, setProvincias);
+  const cargarCantones = (provinciaId) =>
+    cargarCatalogo(() => obtenerCantonesPorProvincia(provinciaId), setLoadingCantones, setCantones);
 
-  const cargarCantones = async (provinciaId) => {
-    setLoadingCantones(true);
-    const result = await obtenerCantonesPorProvincia(provinciaId);
-    if (result.success) {
-      setCantones(result.data);
-    }
-    setLoadingCantones(false);
-  };
-
-  const handleChange = (field, value) => {
-    const newDatos = { ...datos, [field]: value };
-    
-    // Validaciones en vivo
+  // Aplica cambios al formulario, valida en vivo y limpia el error del servidor de los campos tocados
+  const actualizar = (cambios) => {
     const newErrors = { ...errors };
-    
-    if (field === 'celular') {
-      if (!value || value.length < 10) {
-        newErrors.celular = 'El celular debe tener al menos 10 dígitos';
-      } else {
-        delete newErrors.celular;
-      }
-    }
-    
-    if (field === 'correo_1') {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!value || !emailRegex.test(value)) {
-        newErrors.correo_1 = 'Ingrese un correo válido';
-      } else {
-        delete newErrors.correo_1;
-      }
-    }
-    
-    if (field === 'correo_2' && value) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(value)) {
-        newErrors.correo_2 = 'Ingrese un correo válido';
-      } else {
-        delete newErrors.correo_2;
-      }
-    }
-    
+    Object.entries(cambios).forEach(([field, value]) => {
+      const msg = validarCampo(field, value);
+      if (msg) newErrors[field] = msg;
+      else delete newErrors[field];
+    });
     setErrors(newErrors);
-    
-    if (onChange) {
-      onChange(newDatos);
-    }
+
+    setErroresServidor((prev) => {
+      const next = { ...prev };
+      Object.keys(cambios).forEach((field) => delete next[field]);
+      return next;
+    });
+
+    onChange({ ...datos, ...cambios });
   };
 
+  const handleChange = (field, value) => actualizar({ [field]: value });
+
+  // Al cambiar de país se reinician provincia, cantón y los campos de texto en el mismo cambio
   const handlePaisChange = (value) => {
-    const paisId = parseInt(value);
-    handleChange('pais_id', paisId);
-    
-    // Si no es Ecuador, limpiar provincia y cantón
-    if (paisId !== 1) {
-      handleChange('provincia_texto', '');
-      handleChange('ciudad_texto', '');
-    }
+    actualizar({
+      pais_id: value ? parseInt(value, 10) : null,
+      provincia_id: null,
+      canton_id: null,
+      provincia_texto: '',
+      ciudad_texto: '',
+    });
   };
 
+  // Al cambiar de provincia se reinicia el cantón en el mismo cambio
   const handleProvinciaChange = (value) => {
-    const provinciaId = value ? parseInt(value) : null;
-    handleChange('provincia_id', provinciaId);
+    actualizar({ provincia_id: value ? parseInt(value, 10) : null, canton_id: null });
   };
 
   const handleCantonChange = (value) => {
-    const cantonId = value ? parseInt(value) : null;
-    handleChange('canton_id', cantonId);
+    actualizar({ canton_id: value ? parseInt(value, 10) : null });
   };
 
-  const esEcuador = datos.pais_id === 1;
+  const errorDe = (field) => errors[field] || erroresServidor[field];
 
   return (
     <Card title="1.2 Domicilio y Contacto">
       <div className="space-y-6">
-        {error && <Alert type="error" message={error} onClose={() => {}} />}
+        {errorCatalogo && <Alert type="error" message={errorCatalogo} onClose={() => setErrorCatalogo('')} />}
 
         {/* Cascada geográfica */}
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-gray-900">Ubicación</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Ubicación</h3>
           
           <Select
             label="País *"
@@ -151,7 +140,7 @@ const DomicilioContacto = ({ datos, onChange, onSave, saving, error }) => {
             value={datos.pais_id || ''}
             onChange={(e) => handlePaisChange(e.target.value)}
             loading={loadingPaises}
-            error={errors.pais_id}
+            error={errorDe('pais_id')}
             required
           />
 
@@ -165,12 +154,11 @@ const DomicilioContacto = ({ datos, onChange, onSave, saving, error }) => {
                     value={datos.provincia_id || ''}
                     onChange={(e) => handleProvinciaChange(e.target.value)}
                     loading={loadingProvincias}
-                    error={errors.provincia_id}
-                    disabled={!datos.pais_id}
+                    error={errorDe('provincia_id')}
                     required
                   />
                   {loadingProvincias && (
-                    <div className="mt-2 flex items-center text-sm text-gray-500">
+                    <div className="mt-2 flex items-center text-sm text-slate-500">
                       <Spinner size="small" />
                       <span className="ml-2">Cargando provincias...</span>
                     </div>
@@ -184,12 +172,12 @@ const DomicilioContacto = ({ datos, onChange, onSave, saving, error }) => {
                     value={datos.canton_id || ''}
                     onChange={(e) => handleCantonChange(e.target.value)}
                     loading={loadingCantones}
-                    error={errors.canton_id}
+                    error={errorDe('canton_id')}
                     disabled={!datos.provincia_id}
                     required
                   />
                   {loadingCantones && (
-                    <div className="mt-2 flex items-center text-sm text-gray-500">
+                    <div className="mt-2 flex items-center text-sm text-slate-500">
                       <Spinner size="small" />
                       <span className="ml-2">Cargando cantones...</span>
                     </div>
@@ -203,14 +191,14 @@ const DomicilioContacto = ({ datos, onChange, onSave, saving, error }) => {
                 label="Provincia *"
                 value={datos.provincia_texto || ''}
                 onChange={(e) => handleChange('provincia_texto', e.target.value)}
-                error={errors.provincia_texto}
+                error={errorDe('provincia_texto')}
                 required
               />
               <Input
                 label="Ciudad *"
                 value={datos.ciudad_texto || ''}
                 onChange={(e) => handleChange('ciudad_texto', e.target.value)}
-                error={errors.ciudad_texto}
+                error={errorDe('ciudad_texto')}
                 required
               />
             </div>
@@ -219,15 +207,17 @@ const DomicilioContacto = ({ datos, onChange, onSave, saving, error }) => {
 
         {/* Contacto */}
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-gray-900">Contacto</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Contacto</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
               label="Celular *"
               type="tel"
               value={datos.celular || ''}
-              onChange={(e) => handleChange('celular', e.target.value)}
-              error={errors.celular}
+              onChange={(e) => handleChange('celular', e.target.value.replace(/\D/g, ''))}
+              inputMode="numeric"
+              maxLength={10}
+              error={errorDe('celular')}
               placeholder="0991234567"
               required
             />
@@ -236,7 +226,7 @@ const DomicilioContacto = ({ datos, onChange, onSave, saving, error }) => {
               type="email"
               value={datos.correo_1 || ''}
               onChange={(e) => handleChange('correo_1', e.target.value)}
-              error={errors.correo_1}
+              error={errorDe('correo_1')}
               placeholder="ejemplo@correo.com"
               required
             />
@@ -245,7 +235,7 @@ const DomicilioContacto = ({ datos, onChange, onSave, saving, error }) => {
               type="email"
               value={datos.correo_2 || ''}
               onChange={(e) => handleChange('correo_2', e.target.value)}
-              error={errors.correo_2}
+              error={errorDe('correo_2')}
               placeholder="ejemplo2@correo.com"
             />
           </div>
@@ -253,7 +243,7 @@ const DomicilioContacto = ({ datos, onChange, onSave, saving, error }) => {
 
         {/* Dirección detallada */}
         <div className="space-y-4">
-          <h3 className="text-sm font-medium text-gray-900">Dirección Detallada</h3>
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Dirección Detallada</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input
@@ -294,14 +284,13 @@ const DomicilioContacto = ({ datos, onChange, onSave, saving, error }) => {
           />
         </div>
 
-        <div className="flex justify-end">
-          <button
+        <div className="flex justify-end border-t border-slate-100 pt-5">
+          <Button
             onClick={onSave}
             disabled={saving || Object.keys(errors).length > 0}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Guardando...' : 'Guardar'}
-          </button>
+          </Button>
         </div>
       </div>
     </Card>

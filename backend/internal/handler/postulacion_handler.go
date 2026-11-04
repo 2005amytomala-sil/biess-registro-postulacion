@@ -1,19 +1,20 @@
 package handler
 
 import (
+	"errors"
+	"io"
 	"net/http"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/middleware"
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 type PostulacionHandler struct {
-	postulacionService *service.PostulacionService
+	postulacionService domain.PostulacionService
 }
 
-func NewPostulacionHandler(postulacionService *service.PostulacionService) *PostulacionHandler {
+func NewPostulacionHandler(postulacionService domain.PostulacionService) *PostulacionHandler {
 	return &PostulacionHandler{
 		postulacionService: postulacionService,
 	}
@@ -60,37 +61,11 @@ func (h *PostulacionHandler) GuardarPostulacion(c *gin.Context) {
 
 	var req domain.GuardarPostulacionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.Error(domain.ErrBadRequest)
+		c.Error(errorDeBinding(err))
 		return
 	}
 
 	if err := h.postulacionService.GuardarPostulacion(c.Request.Context(), postulanteID, cedula, &req); err != nil {
-		// Manejar errores específicos de validación de negocio
-		if appErr, ok := err.(*domain.AppError); ok {
-			switch appErr.Code {
-			case domain.ErrNacionalidadNoPermitida.Code:
-				c.JSON(http.StatusUnprocessableEntity, gin.H{
-					"error":  appErr.Message,
-					"codigo": appErr.Code,
-				})
-				return
-			case domain.ErrSectorNoValido.Code:
-				c.JSON(http.StatusUnprocessableEntity, gin.H{
-					"error":  appErr.Message,
-					"codigo": appErr.Code,
-				})
-				return
-			case domain.ErrCantonNoPerteneceAProvincia.Code,
-				domain.ErrListaFamiliaresVacia.Code,
-				domain.ErrFechaFinAnteriorInicio.Code,
-				domain.ErrDescripcionExcedeLongitud.Code:
-				c.JSON(http.StatusUnprocessableEntity, gin.H{
-					"error":  appErr.Message,
-					"codigo": appErr.Code,
-				})
-				return
-			}
-		}
 		c.Error(err)
 		return
 	}
@@ -109,7 +84,20 @@ func (h *PostulacionHandler) EnviarPostulacion(c *gin.Context) {
 		return
 	}
 
-	codigo, err := h.postulacionService.EnviarPostulacion(c.Request.Context(), postulanteID)
+	cedula, ok := middleware.CedulaFrom(c)
+	if !ok {
+		c.Error(domain.ErrNoAutorizado)
+		return
+	}
+
+	// El body es opcional: sin body el consentimiento se considera no aceptado
+	var req domain.EnviarPostulacionRequest
+	if err := c.ShouldBindJSON(&req); err != nil && !errors.Is(err, io.EOF) {
+		c.Error(errorDeBinding(err))
+		return
+	}
+
+	codigo, err := h.postulacionService.EnviarPostulacion(c.Request.Context(), postulanteID, cedula, req.AceptaConsentimiento)
 	if err != nil {
 		c.Error(err)
 		return
@@ -119,4 +107,13 @@ func (h *PostulacionHandler) EnviarPostulacion(c *gin.Context) {
 		"message": "Postulación enviada exitosamente",
 		"codigo":  codigo,
 	})
+}
+
+// errorDeBinding conserva los errores de dominio producidos al decodificar (p. ej. formato de fecha)
+func errorDeBinding(err error) error {
+	var appErr *domain.AppError
+	if errors.As(err, &appErr) {
+		return appErr
+	}
+	return domain.ErrBadRequest
 }

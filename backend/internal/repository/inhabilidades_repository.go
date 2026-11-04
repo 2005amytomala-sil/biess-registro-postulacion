@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
-	"github.com/jackc/pgx/v5"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -18,7 +18,7 @@ func NewInhabilidadesRepository(pool *pgxpool.Pool) *InhabilidadesRepository {
 	return &InhabilidadesRepository{pool: pool}
 }
 
-func (r *InhabilidadesRepository) Guardar(ctx context.Context, tx pgx.Tx, inhabilidades []domain.Inhabilidad) error {
+func (r *InhabilidadesRepository) Guardar(ctx context.Context, inhabilidades []domain.Inhabilidad) error {
 	if len(inhabilidades) == 0 {
 		return nil
 	}
@@ -41,7 +41,7 @@ func (r *InhabilidadesRepository) Guardar(ctx context.Context, tx pgx.Tx, inhabi
 			}
 		}
 
-		_, err := tx.Exec(ctx, query,
+		_, err := postgres.Conn(ctx, r.pool).Exec(ctx, query,
 			inh.PostulacionID,
 			inh.CodigoPregunta,
 			inh.Respuesta,
@@ -59,7 +59,7 @@ func (r *InhabilidadesRepository) ObtenerPorPostulacionID(ctx context.Context, p
 	query := `SELECT postulacion_id, codigo_pregunta, respuesta, detalle, created_at
 	          FROM inhabilidades WHERE postulacion_id = $1`
 
-	rows, err := r.pool.Query(ctx, query, postulacionID)
+	rows, err := postgres.Conn(ctx, r.pool).Query(ctx, query, postulacionID)
 	if err != nil {
 		return nil, fmt.Errorf("error al obtener inhabilidades: %w", err)
 	}

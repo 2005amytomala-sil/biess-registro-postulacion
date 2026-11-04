@@ -51,7 +51,6 @@ INSERT INTO paises (id, nombre) VALUES
 (50, 'Cuba'),
 (51, 'Dinamarca'),
 (52, 'Dominica'),
-(53, 'Ecuador'),
 (54, 'Egipto'),
 (55, 'El Salvador'),
 (56, 'Emiratos Árabes Unidos'),
@@ -196,6 +195,9 @@ INSERT INTO paises (id, nombre) VALUES
 (195, 'Zimbabue')
 ON CONFLICT (nombre) DO NOTHING;
 
+-- Sincronizar la secuencia tras insertar ids explícitos
+SELECT setval(pg_get_serial_sequence('paises', 'id'), (SELECT MAX(id) FROM paises));
+
 -- ----------------------------------------------------------------------------
 -- INSERT: Provincias del Ecuador (24 provincias)
 -- ----------------------------------------------------------------------------
@@ -225,6 +227,8 @@ INSERT INTO provincias (id, nombre) VALUES
 (23, 'Tungurahua'),
 (24, 'Zamora Chinchipe')
 ON CONFLICT (nombre) DO NOTHING;
+
+SELECT setval(pg_get_serial_sequence('provincias', 'id'), (SELECT MAX(id) FROM provincias));
 
 -- ============================================================================
 -- FIN DEL BLOQUE 2: Países y Provincias

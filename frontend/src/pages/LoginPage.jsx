@@ -1,10 +1,13 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import Button from '../components/Button';
 import Input from '../components/Input';
 import Alert from '../components/Alert';
 import Card from '../components/Card';
+import AuthLayout from '../components/AuthLayout';
+import CuentaRegresiva from '../components/CuentaRegresiva';
+import useCuentaRegresiva from '../hooks/useCuentaRegresiva';
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -14,10 +17,11 @@ const LoginPage = () => {
   const [errors, setErrors] = useState({});
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [bloqueado, setBloqueado] = useState(false);
-  const [retryAfter, setRetryAfter] = useState(0);
+  const { bloqueado, restante, iniciar: iniciarBloqueo } = useCuentaRegresiva();
   const { login } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [exito, setExito] = useState(location.state?.mensaje || '');
 
   const validateCedula = (cedula) => {
     if (!cedula) return 'La cédula es requerida';
@@ -46,6 +50,7 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setExito('');
 
     const cedulaError = validateCedula(formData.cedula);
     const passwordError = validatePassword(formData.password);
@@ -60,63 +65,22 @@ const LoginPage = () => {
     setLoading(false);
 
     if (result.success) {
-      navigate('/dashboard');
+      navigate('/postulacion', { replace: true });
     } else {
-      if (result.retryAfter) {
-        setBloqueado(true);
-        setRetryAfter(result.retryAfter);
-        setError('Registro fallido, inténtelo nuevamente en 10 minutos');
-      } else {
-        setError(result.message);
-      }
+      setError(result.message);
+      if (result.retryAfter) iniciarBloqueo(result.retryAfter);
     }
-  };
-
-  useEffect(() => {
-    if (bloqueado && retryAfter > 0) {
-      const timer = setInterval(() => {
-        setRetryAfter((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            setBloqueado(false);
-            setError('');
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(timer);
-    }
-  }, [bloqueado, retryAfter]);
-
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">BIESS</h1>
-          <p className="text-gray-600 mt-2">Sistema de Registro y Postulación</p>
-        </div>
+    <AuthLayout>
         <Card title="Iniciar Sesión">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {error && <Alert type="error" message={error} />}
-            {bloqueado && (
-              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-9a1 1 0 10-2 0v4a1 1 0 102 0v-4zm0 6a1 1 0 10-2 0 1 1 0 102 0z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-sm text-red-800">
-                    Cuenta bloqueada. Intente nuevamente en: <strong className="text-red-900">{formatTime(retryAfter)}</strong>
-                  </p>
-                </div>
-              </div>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {exito && <Alert type="success" message={exito} />}
+            {bloqueado ? (
+              <CuentaRegresiva mensaje={error} restante={restante} />
+            ) : (
+              error && <Alert type="error" message={error} />
             )}
             <Input
               label="Cédula"
@@ -145,21 +109,20 @@ const LoginPage = () => {
             </Button>
           </form>
           <div className="mt-6 flex justify-center">
-            <Link to="/recuperar" className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+            <Link to="/recuperar" className="rounded text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline">
               ¿Olvidó su contraseña?
             </Link>
           </div>
           <div className="mt-4 text-center">
-            <span className="text-sm text-gray-600">
+            <span className="text-sm text-slate-600">
               ¿No tiene cuenta?{' '}
-              <Link to="/registro" className="text-blue-600 hover:text-blue-500 font-medium">
+              <Link to="/registro" className="rounded font-medium text-blue-700 hover:text-blue-900 hover:underline">
                 Regístrese
               </Link>
             </span>
           </div>
         </Card>
-      </div>
-    </div>
+    </AuthLayout>
   );
 };
 

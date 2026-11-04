@@ -1,11 +1,11 @@
 const Card = ({ children, className = '', title }) => {
   return (
-    <div className={`bg-white shadow-md rounded-lg p-6 ${className}`}>
+    <section className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6 ${className}`}>
       {title && (
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+        <h2 className="mb-5 border-b border-slate-100 pb-3 text-lg font-semibold text-slate-900">{title}</h2>
       )}
       {children}
-    </div>
+    </section>
   );
 };
 

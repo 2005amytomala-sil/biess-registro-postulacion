@@ -142,7 +142,8 @@ const Inhabilidades = ({ datos, onChange, onSave, saving, error }) => {
     });
 
     onChange(inhabilidades);
-    await onSave();
+    // Se pasan los datos directamente: el estado del padre aún no se actualizó en este render
+    await onSave(inhabilidades);
   };
 
   return (
@@ -160,10 +161,10 @@ const Inhabilidades = ({ datos, onChange, onSave, saving, error }) => {
         {/* Lista de preguntas */}
         <div className="space-y-4">
           {preguntas.map((pregunta, index) => (
-            <div key={pregunta.codigo} className="border-b border-gray-200 pb-4 last:border-0">
+            <div key={pregunta.codigo} className="border-b border-slate-200 pb-4 last:border-0">
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900 mb-2">
+                  <p className="text-sm font-medium text-slate-900 mb-2">
                     {index + 1}. {pregunta.texto}
                   </p>
                   <div className="flex gap-4">
@@ -198,8 +199,8 @@ const Inhabilidades = ({ datos, onChange, onSave, saving, error }) => {
 
               {/* Campos adicionales para 1.9.7 si la respuesta es Sí */}
               {pregunta.codigo === '1.9.7' && respuestas['1.9.7'] === true && (
-                <div className="mt-4 ml-4 bg-gray-50 border rounded-lg p-4 space-y-4">
-                  <h4 className="text-sm font-medium text-gray-900">Información adicional requerida:</h4>
+                <div className="mt-4 ml-4 bg-slate-50 border rounded-lg p-4 space-y-4">
+                  <h4 className="text-sm font-medium text-slate-900">Información adicional requerida:</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
                       label="Institución *"
@@ -224,7 +225,7 @@ const Inhabilidades = ({ datos, onChange, onSave, saving, error }) => {
                       required
                     />
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
                         Motivo *
                       </label>
                       <textarea
@@ -232,7 +233,7 @@ const Inhabilidades = ({ datos, onChange, onSave, saving, error }) => {
                         onChange={(e) => handleDetalle1_9_7Change('motivo', e.target.value)}
                         rows={3}
                         className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          errors.detalle1_9_7_motivo ? 'border-red-500' : 'border-gray-300'
+                          errors.detalle1_9_7_motivo ? 'border-red-500' : 'border-slate-300'
                         }`}
                         placeholder="Describa el motivo..."
                       />
@@ -247,14 +248,13 @@ const Inhabilidades = ({ datos, onChange, onSave, saving, error }) => {
           ))}
         </div>
 
-        <div className="flex justify-end">
-          <button
+        <div className="flex justify-end border-t border-slate-100 pt-5">
+          <Button
             onClick={handleGuardar}
             disabled={saving}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Guardando...' : 'Guardar'}
-          </button>
+          </Button>
         </div>
       </div>
     </Card>

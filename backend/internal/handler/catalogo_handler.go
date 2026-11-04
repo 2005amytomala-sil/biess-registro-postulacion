@@ -5,15 +5,14 @@ import (
 	"strconv"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 type CatalogoHandler struct {
-	catalogoService *service.CatalogoService
+	catalogoService domain.CatalogoService
 }
 
-func NewCatalogoHandler(catalogoService *service.CatalogoService) *CatalogoHandler {
+func NewCatalogoHandler(catalogoService domain.CatalogoService) *CatalogoHandler {
 	return &CatalogoHandler{
 		catalogoService: catalogoService,
 	}

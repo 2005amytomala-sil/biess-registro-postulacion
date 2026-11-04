@@ -1,19 +1,23 @@
 package handler
 
 import (
+	"context"
 	"net/http"
 
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/redis"
 	"github.com/gin-gonic/gin"
 )
 
-type HealthHandler struct {
-	pg    *postgres.Postgres
-	redis *redis.Redis
+// Pinger es cualquier dependencia que pueda verificar su conectividad (Postgres, Redis)
+type Pinger interface {
+	Ping(ctx context.Context) error
 }
 
-func NewHealthHandler(pg *postgres.Postgres, redis *redis.Redis) *HealthHandler {
+type HealthHandler struct {
+	pg    Pinger
+	redis Pinger
+}
+
+func NewHealthHandler(pg Pinger, redis Pinger) *HealthHandler {
 	return &HealthHandler{
 		pg:    pg,
 		redis: redis,

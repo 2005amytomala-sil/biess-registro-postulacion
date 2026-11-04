@@ -32,6 +32,8 @@ type VerificarIdentidadRequest struct {
 
 type RegistroRequest struct {
 	Cedula          string `json:"cedula" binding:"required"`
+	FechaExpedicion string `json:"fecha_expedicion"`
+	CodigoDactilar  string `json:"codigo_dactilar"`
 	Correo          string `json:"correo" binding:"required,email"`
 	Password        string `json:"password" binding:"required,min=8"`
 	ConfirmPassword string `json:"confirm_password" binding:"required"`

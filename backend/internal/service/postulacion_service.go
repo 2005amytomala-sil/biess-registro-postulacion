@@ -7,42 +7,40 @@ import (
 	"time"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/repository"
-	"github.com/jackc/pgx/v5"
 )
 
+// PostulacionService implementa domain.PostulacionService; depende solo de interfaces de domain
 type PostulacionService struct {
-	pg                  *postgres.Postgres
-	postulacionRepo     *repository.PostulacionRepository
-	datosPersonalesRepo *repository.DatosPersonalesRepository
-	domicilioRepo       *repository.DomicilioRepository
-	familiaresRepo      *repository.FamiliaresRepository
-	respaldosRepo       *repository.RespaldoRepository
-	formacionRepo       *repository.FormacionRepository
-	experienciaRepo     *repository.ExperienciaRepository
-	inhabilidadesRepo   *repository.InhabilidadesRepository
+	tx                  domain.TxManager
+	postulacionRepo     domain.PostulacionRepository
+	datosPersonalesRepo domain.DatosPersonalesRepository
+	domicilioRepo       domain.DomicilioRepository
+	familiaresRepo      domain.FamiliaresRepository
+	respaldosRepo       domain.RespaldoRepository
+	formacionRepo       domain.FormacionRepository
+	experienciaRepo     domain.ExperienciaRepository
+	inhabilidadesRepo   domain.InhabilidadesRepository
 	registroCivil       domain.RegistroCivilClient
 	historialLaboral    domain.HistorialLaboralClient
 	catalogoRepo        domain.CatalogoRepository
 }
 
 func NewPostulacionService(
-	pg *postgres.Postgres,
-	postulacionRepo *repository.PostulacionRepository,
-	datosPersonalesRepo *repository.DatosPersonalesRepository,
-	domicilioRepo *repository.DomicilioRepository,
-	familiaresRepo *repository.FamiliaresRepository,
-	respaldosRepo *repository.RespaldoRepository,
-	formacionRepo *repository.FormacionRepository,
-	experienciaRepo *repository.ExperienciaRepository,
-	inhabilidadesRepo *repository.InhabilidadesRepository,
+	tx domain.TxManager,
+	postulacionRepo domain.PostulacionRepository,
+	datosPersonalesRepo domain.DatosPersonalesRepository,
+	domicilioRepo domain.DomicilioRepository,
+	familiaresRepo domain.FamiliaresRepository,
+	respaldosRepo domain.RespaldoRepository,
+	formacionRepo domain.FormacionRepository,
+	experienciaRepo domain.ExperienciaRepository,
+	inhabilidadesRepo domain.InhabilidadesRepository,
 	registroCivil domain.RegistroCivilClient,
 	historialLaboral domain.HistorialLaboralClient,
 	catalogoRepo domain.CatalogoRepository,
 ) *PostulacionService {
 	return &PostulacionService{
-		pg:                  pg,
+		tx:                  tx,
 		postulacionRepo:     postulacionRepo,
 		datosPersonalesRepo: datosPersonalesRepo,
 		domicilioRepo:       domicilioRepo,
@@ -57,338 +55,311 @@ func NewPostulacionService(
 	}
 }
 
-// GuardarPostulacion guarda o actualiza una postulación dentro de una transacción
-func (s *PostulacionService) GuardarPostulacion(ctx context.Context, postulanteID int, cedula string, req *domain.GuardarPostulacionRequest) error {
-	// Iniciar transacción
-	if err := s.pg.WithTx(ctx, func(ctx context.Context, tx interface{}) error {
-		pgxTx, ok := tx.(pgx.Tx)
-		if !ok {
-			return fmt.Errorf("error: transaction is not pgx.Tx")
-		}
+// elegibilidad agrupa el resultado de las verificaciones externas previas a cualquier operación
+type elegibilidad struct {
+	registroCivil *domain.RegistroCivilData
+	sector        string
+	existente     *domain.Postulacion
+}
 
-		// 1. Obtener o crear postulación
-		postulacion, err := s.postulacionRepo.ObtenerPorPostulanteID(ctx, postulanteID)
+func (s *PostulacionService) obtenerExistente(ctx context.Context, postulanteID int) (*domain.Postulacion, error) {
+	p, err := s.postulacionRepo.ObtenerPorPostulanteID(ctx, postulanteID)
+	if errors.Is(err, domain.ErrNotFound) {
+		return nil, nil
+	}
+	return p, err
+}
+
+// verificarElegibilidad consulta el Registro Civil (cédula del JWT) y el Historial Laboral.
+// Si la nacionalidad o el sector no son válidos, cierra la postulación en una transacción propia
+// (con COMMIT) y recién después devuelve el error.
+func (s *PostulacionService) verificarElegibilidad(ctx context.Context, postulanteID int, cedula string, sectorSolicitado string) (*elegibilidad, error) {
+	rc, err := s.registroCivil.ObtenerDatos(ctx, cedula)
+	if err != nil {
+		return nil, fmt.Errorf("error obteniendo datos del registro civil: %w", err)
+	}
+
+	existente, err := s.obtenerExistente(ctx, postulanteID)
+	if err != nil {
+		return nil, err
+	}
+
+	if rc.Nacionalidad != nacionalidadPermitida {
+		if err := s.cerrarPostulacion(ctx, postulanteID, "", motivoNacionalidad); err != nil {
+			return nil, err
+		}
+		return nil, domain.ErrNacionalidadNoPermitida.ConMensaje(motivoNacionalidad)
+	}
+
+	sector := sectorEfectivo(sectorSolicitado, existente)
+	if !sectorValido(sector) {
+		return nil, errValidacion("El sector debe ser afiliados, jubilados o empleadores")
+	}
+
+	valido, mensaje, err := s.historialLaboral.VerificarSector(ctx, cedula, sector)
+	if err != nil {
+		return nil, fmt.Errorf("error verificando sector: %w", err)
+	}
+	if !valido {
+		if err := s.cerrarPostulacion(ctx, postulanteID, sector, mensaje); err != nil {
+			return nil, err
+		}
+		return nil, domain.ErrSectorNoValido.ConMensaje(mensaje)
+	}
+
+	return &elegibilidad{registroCivil: rc, sector: sector, existente: existente}, nil
+}
+
+// cerrarPostulacion persiste estado=cerrada y motivo_cierre en su propia transacción.
+// Solo cierra postulaciones en borrador (no altera una enviada ni el motivo de una ya cerrada).
+func (s *PostulacionService) cerrarPostulacion(ctx context.Context, postulanteID int, sector string, motivo string) error {
+	return s.tx.WithTx(ctx, func(ctx context.Context) error {
+		postulacion, err := s.postulacionRepo.ObtenerPorPostulanteIDParaActualizar(ctx, postulanteID)
+		if errors.Is(err, domain.ErrNotFound) {
+			codigo, err := s.postulacionRepo.GenerarCodigoUnico(ctx)
+			if err != nil {
+				return fmt.Errorf("error generando código único: %w", err)
+			}
+			if sector == "" {
+				sector = sectorPorDefecto
+			}
+			return s.postulacionRepo.Crear(ctx, &domain.Postulacion{
+				PostulanteID: postulanteID,
+				Codigo:       codigo,
+				Sector:       sector,
+				Estado:       domain.EstadoCerrada,
+				MotivoCierre: motivo,
+			})
+		}
 		if err != nil {
-			// Si no existe, crear nueva
-			if errors.Is(err, pgx.ErrNoRows) {
-				codigo, err := s.postulacionRepo.GenerarCodigoUnico(ctx)
-				if err != nil {
-					return fmt.Errorf("error generando código único: %w", err)
-				}
+			return err
+		}
+		if postulacion.Estado != domain.EstadoBorrador {
+			return nil
+		}
 
-				postulacion = &domain.Postulacion{
-					PostulanteID: postulanteID,
-					Codigo:       codigo,
-					Sector:       req.Sector,
-					Estado:       "borrador",
-				}
+		postulacion.Estado = domain.EstadoCerrada
+		postulacion.MotivoCierre = motivo
+		if sector != "" {
+			postulacion.Sector = sector
+		}
+		if err := s.postulacionRepo.Actualizar(ctx, postulacion); err != nil {
+			return fmt.Errorf("error cerrando postulación: %w", err)
+		}
+		return nil
+	})
+}
 
-				if err := s.postulacionRepo.Crear(ctx, pgxTx, postulacion); err != nil {
-					return fmt.Errorf("error creando postulación: %w", err)
-				}
-			} else {
-				return err
-			}
-		} else {
-			// Actualizar sector si cambió y está en el request
-			if req.Sector != "" && postulacion.Sector != req.Sector {
-				postulacion.Sector = req.Sector
-				if err := s.postulacionRepo.Actualizar(ctx, pgxTx, postulacion); err != nil {
-					return fmt.Errorf("error actualizando postulación: %w", err)
-				}
+// obtenerOCrear obtiene la postulación bloqueando la fila, o la crea en borrador
+func (s *PostulacionService) obtenerOCrear(ctx context.Context, postulanteID int, sector string) (*domain.Postulacion, error) {
+	postulacion, err := s.postulacionRepo.ObtenerPorPostulanteIDParaActualizar(ctx, postulanteID)
+	if err == nil {
+		return postulacion, nil
+	}
+	if !errors.Is(err, domain.ErrNotFound) {
+		return nil, err
+	}
+
+	codigo, err := s.postulacionRepo.GenerarCodigoUnico(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error generando código único: %w", err)
+	}
+	postulacion = &domain.Postulacion{
+		PostulanteID: postulanteID,
+		Codigo:       codigo,
+		Sector:       sector,
+		Estado:       domain.EstadoBorrador,
+	}
+	if err := s.postulacionRepo.Crear(ctx, postulacion); err != nil {
+		return nil, fmt.Errorf("error creando postulación: %w", err)
+	}
+	return postulacion, nil
+}
+
+// guardarDatosPersonales persiste los datos personales tomados del Registro Civil
+func (s *PostulacionService) guardarDatosPersonales(ctx context.Context, postulacionID int, rc *domain.RegistroCivilData) error {
+	fechaNacimiento, err := time.Parse("02/01/2006", rc.FechaNacimiento)
+	if err != nil {
+		return fmt.Errorf("error parseando fecha de nacimiento: %w", err)
+	}
+
+	datosPersonales := &domain.DatosPersonales{
+		PostulacionID:   postulacionID,
+		Nombres:         rc.Nombres,
+		Apellidos:       rc.Apellidos,
+		Cedula:          rc.Cedula,
+		Genero:          rc.Genero,
+		FechaNacimiento: fechaNacimiento,
+		Nacionalidad:    rc.Nacionalidad,
+		EstadoCivil:     rc.EstadoCivil,
+		ParejaNombres:   rc.ParejaNombres,
+		ParejaCedula:    rc.ParejaCedula,
+	}
+	if err := s.datosPersonalesRepo.Guardar(ctx, datosPersonales); err != nil {
+		return fmt.Errorf("error guardando datos personales: %w", err)
+	}
+	return nil
+}
+
+// GuardarPostulacion guarda de forma parcial: cada sección presente en el request modifica solo su tabla
+func (s *PostulacionService) GuardarPostulacion(ctx context.Context, postulanteID int, cedula string, req *domain.GuardarPostulacionRequest) error {
+	eleg, err := s.verificarElegibilidad(ctx, postulanteID, cedula, req.Sector)
+	if err != nil {
+		return err
+	}
+	if eleg.existente != nil {
+		if err := verificarEditable(eleg.existente); err != nil {
+			return err
+		}
+	}
+	if err := validarRequest(ctx, s.catalogoRepo, req); err != nil {
+		return err
+	}
+
+	return s.tx.WithTx(ctx, func(ctx context.Context) error {
+		postulacion, err := s.obtenerOCrear(ctx, postulanteID, eleg.sector)
+		if err != nil {
+			return err
+		}
+		// Revalidar con la fila bloqueada por si cambió el estado de forma concurrente
+		if err := verificarEditable(postulacion); err != nil {
+			return err
+		}
+		if postulacion.Sector != eleg.sector {
+			postulacion.Sector = eleg.sector
+			if err := s.postulacionRepo.Actualizar(ctx, postulacion); err != nil {
+				return fmt.Errorf("error actualizando postulación: %w", err)
 			}
 		}
 
-		// Solo validar y guardar datos personales si están en el request
-		if req.Domicilio.PostulacionID != 0 || req.Domicilio.Celular != "" {
-			// 2. Obtener datos personales desde Registro Civil (usando cédula del JWT)
-			registroCivilData, err := s.registroCivil.ObtenerDatos(ctx, cedula)
-			if err != nil {
-				return fmt.Errorf("error obteniendo datos del registro civil: %w", err)
-			}
+		if err := s.guardarDatosPersonales(ctx, postulacion.ID, eleg.registroCivil); err != nil {
+			return err
+		}
 
-			// 3. Validar nacionalidad
-			if registroCivilData.Nacionalidad != "Ecuatoriana" {
-				// Cerrar postulación
-				postulacion.Estado = "cerrada"
-				postulacion.MotivoCierre = "Nacionalidad no permitida. Solo se permite nacionalidad ecuatoriana."
-				if err := s.postulacionRepo.Actualizar(ctx, pgxTx, postulacion); err != nil {
-					return fmt.Errorf("error cerrando postulación: %w", err)
-				}
-				return domain.ErrNacionalidadNoPermitida
-			}
-
-			// 4. Validar sector con Historial Laboral
-			valido, mensaje, err := s.historialLaboral.VerificarSector(ctx, cedula, req.Sector)
-			if err != nil {
-				return fmt.Errorf("error verificando sector: %w", err)
-			}
-			if !valido {
-				// Cerrar postulación
-				postulacion.Estado = "cerrada"
-				postulacion.MotivoCierre = mensaje
-				if err := s.postulacionRepo.Actualizar(ctx, pgxTx, postulacion); err != nil {
-					return fmt.Errorf("error cerrando postulación: %w", err)
-				}
-				return &domain.AppError{
-					Code:    domain.ErrSectorNoValido.Code,
-					Message: mensaje,
-					Err:     domain.ErrSectorNoValido,
-				}
-			}
-
-			// 5. Validar domicilio geográfico
-			if err := s.validarDomicilio(ctx, req.Domicilio); err != nil {
-				return err
-			}
-
-			// 6. Validar familiares
-			if err := s.validarFamiliares(req.TieneFamiliares, req.Familiares); err != nil {
-				return err
-			}
-
-			// 7. Validar experiencia
-			if err := s.validarExperiencia(req.Experiencia); err != nil {
-				return err
-			}
-
-			// 8. Guardar datos personales (desde Registro Civil)
-			fechaNacimiento, err := time.Parse("02/01/2006", registroCivilData.FechaNacimiento)
-			if err != nil {
-				return fmt.Errorf("error parseando fecha de nacimiento: %w", err)
-			}
-
-			datosPersonales := &domain.DatosPersonales{
-				PostulacionID:   postulacion.ID,
-				Nombres:         registroCivilData.Nombres,
-				Apellidos:       registroCivilData.Apellidos,
-				Cedula:          registroCivilData.Cedula,
-				Genero:          registroCivilData.Genero,
-				FechaNacimiento: fechaNacimiento,
-				Nacionalidad:    registroCivilData.Nacionalidad,
-				EstadoCivil:     registroCivilData.EstadoCivil,
-				ParejaNombres:   registroCivilData.ParejaNombres,
-				ParejaCedula:    registroCivilData.ParejaCedula,
-			}
-
-			if err := s.datosPersonalesRepo.Guardar(ctx, pgxTx, datosPersonales); err != nil {
-				return fmt.Errorf("error guardando datos personales: %w", err)
-			}
-
-			// 9. Guardar domicilio
-			domicilio := req.Domicilio
-			domicilio.PostulacionID = postulacion.ID
-			if err := s.domicilioRepo.Guardar(ctx, pgxTx, &domicilio); err != nil {
+		if req.Domicilio != nil {
+			req.Domicilio.PostulacionID = postulacion.ID
+			if err := s.domicilioRepo.Guardar(ctx, req.Domicilio); err != nil {
 				return fmt.Errorf("error guardando domicilio: %w", err)
 			}
+		}
 
-			// 10. Guardar respaldo de organización
-			respaldo := req.RespaldoOrganizacion
-			respaldo.PostulacionID = postulacion.ID
-			if err := s.respaldosRepo.Guardar(ctx, pgxTx, &respaldo); err != nil {
-				return fmt.Errorf("error guardando respaldo: %w", err)
-			}
-
-			// 11. Guardar familiares (delete + insert)
-			if err := s.familiaresRepo.EliminarPorPostulacionID(ctx, pgxTx, postulacion.ID); err != nil {
+		if req.TieneFamiliares != nil || req.Familiares != nil {
+			if err := s.familiaresRepo.EliminarPorPostulacionID(ctx, postulacion.ID); err != nil {
 				return fmt.Errorf("error eliminando familiares: %w", err)
 			}
-
-			if len(req.Familiares) > 0 {
+			if tieneFamiliares(req) {
 				for i := range req.Familiares {
 					req.Familiares[i].PostulacionID = postulacion.ID
 				}
-				if err := s.familiaresRepo.Guardar(ctx, pgxTx, req.Familiares); err != nil {
+				if err := s.familiaresRepo.Guardar(ctx, req.Familiares); err != nil {
 					return fmt.Errorf("error guardando familiares: %w", err)
 				}
 			}
 		}
 
-		// 12. Guardar formación (delete + insert) - si está en el request
+		if req.RespaldoOrganizacion != nil {
+			req.RespaldoOrganizacion.PostulacionID = postulacion.ID
+			if err := s.respaldosRepo.Guardar(ctx, req.RespaldoOrganizacion); err != nil {
+				return fmt.Errorf("error guardando respaldo: %w", err)
+			}
+		}
+
 		if req.Formacion != nil {
-			if err := s.formacionRepo.EliminarPorPostulacionID(ctx, pgxTx, postulacion.ID); err != nil {
+			if err := s.formacionRepo.EliminarPorPostulacionID(ctx, postulacion.ID); err != nil {
 				return fmt.Errorf("error eliminando formación: %w", err)
 			}
-
-			if len(req.Formacion) > 0 {
-				for i := range req.Formacion {
-					req.Formacion[i].PostulacionID = postulacion.ID
-				}
-				if err := s.formacionRepo.Guardar(ctx, pgxTx, req.Formacion); err != nil {
-					return fmt.Errorf("error guardando formación: %w", err)
-				}
+			for i := range req.Formacion {
+				req.Formacion[i].PostulacionID = postulacion.ID
+			}
+			if err := s.formacionRepo.Guardar(ctx, req.Formacion); err != nil {
+				return fmt.Errorf("error guardando formación: %w", err)
 			}
 		}
 
-		// 13. Guardar experiencia (delete + insert) - si está en el request
 		if req.Experiencia != nil {
-			if err := s.experienciaRepo.EliminarPorPostulacionID(ctx, pgxTx, postulacion.ID); err != nil {
+			if err := s.experienciaRepo.EliminarPorPostulacionID(ctx, postulacion.ID); err != nil {
 				return fmt.Errorf("error eliminando experiencia: %w", err)
 			}
-
-			if len(req.Experiencia) > 0 {
-				for i := range req.Experiencia {
-					req.Experiencia[i].PostulacionID = postulacion.ID
-				}
-				if err := s.experienciaRepo.Guardar(ctx, pgxTx, req.Experiencia); err != nil {
-					return fmt.Errorf("error guardando experiencia: %w", err)
-				}
+			for i := range req.Experiencia {
+				req.Experiencia[i].PostulacionID = postulacion.ID
+			}
+			if err := s.experienciaRepo.Guardar(ctx, req.Experiencia); err != nil {
+				return fmt.Errorf("error guardando experiencia: %w", err)
 			}
 		}
 
-		// 14. Guardar inhabilidades (upsert) - si está en el request
-		if len(req.Inhabilidades) > 0 {
+		if req.Inhabilidades != nil {
 			for i := range req.Inhabilidades {
 				req.Inhabilidades[i].PostulacionID = postulacion.ID
 			}
-			if err := s.inhabilidadesRepo.Guardar(ctx, pgxTx, req.Inhabilidades); err != nil {
+			if err := s.inhabilidadesRepo.Guardar(ctx, req.Inhabilidades); err != nil {
 				return fmt.Errorf("error guardando inhabilidades: %w", err)
 			}
 		}
 
 		return nil
-	}); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// validarDomicilio valida las reglas geográficas del domicilio
-func (s *PostulacionService) validarDomicilio(ctx context.Context, domicilio domain.DomicilioContacto) error {
-	// Si es Ecuador (pais_id = 1), provincia y cantón son obligatorios
-	if domicilio.PaisID == 1 {
-		if domicilio.ProvinciaID == nil || domicilio.CantonID == nil {
-			return domain.ErrValidation
-		}
-
-		// Validar que el cantón pertenece a la provincia
-		cantones, err := s.catalogoRepo.ObtenerCantonesPorProvincia(ctx, *domicilio.ProvinciaID)
-		if err != nil {
-			return fmt.Errorf("error obteniendo cantones: %w", err)
-		}
-
-		cantonPertenece := false
-		for _, c := range cantones {
-			if c.ID == *domicilio.CantonID {
-				cantonPertenece = true
-				break
-			}
-		}
-
-		if !cantonPertenece {
-			return domain.ErrCantonNoPerteneceAProvincia
-		}
-	} else {
-		// Si no es Ecuador, los campos de texto deben estar presentes
-		if domicilio.ProvinciaTexto == "" || domicilio.CiudadTexto == "" {
-			return domain.ErrValidation
-		}
-	}
-
-	return nil
-}
-
-// validarFamiliares valida la lista de familiares
-func (s *PostulacionService) validarFamiliares(tieneFamiliares bool, familiares []domain.FamiliarIESS) error {
-	if tieneFamiliares {
-		if len(familiares) == 0 {
-			return domain.ErrListaFamiliaresVacia
-		}
-
-		// Validar cada familiar
-		for _, familiar := range familiares {
-			if familiar.Nombres == "" || familiar.Parentesco == "" || familiar.Institucion == "" {
-				return domain.ErrValidation
-			}
-		}
-	}
-
-	return nil
-}
-
-// validarExperiencia valida la experiencia profesional
-func (s *PostulacionService) validarExperiencia(experiencia []domain.ExperienciaProfesional) error {
-	for _, exp := range experiencia {
-		// Validar fecha fin >= fecha inicio
-		if exp.FechaFin != nil && exp.FechaFin.Before(exp.FechaInicio) {
-			return domain.ErrFechaFinAnteriorInicio
-		}
-
-		// Validar descripción <= 1000 caracteres
-		if len(exp.Descripcion) > 1000 {
-			return domain.ErrDescripcionExcedeLongitud
-		}
-	}
-
-	return nil
+	})
 }
 
 // ObtenerPostulacion obtiene la postulación de un postulante, creándola si no existe
 func (s *PostulacionService) ObtenerPostulacion(ctx context.Context, postulanteID int, cedula string) (map[string]interface{}, error) {
-	postulacion, err := s.postulacionRepo.ObtenerPorPostulanteID(ctx, postulanteID)
+	eleg, err := s.verificarElegibilidad(ctx, postulanteID, cedula, "")
 	if err != nil {
-		// Si no existe, crear nueva postulación
-		if errors.Is(err, pgx.ErrNoRows) {
-			codigo, err := s.postulacionRepo.GenerarCodigoUnico(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("error generando código único: %w", err)
-			}
+		return nil, err
+	}
 
-			postulacion = &domain.Postulacion{
-				PostulanteID: postulanteID,
-				Codigo:       codigo,
-				Sector:       "afiliados",
-				Estado:       "borrador",
-			}
+	postulacion := eleg.existente
+	if postulacion == nil {
+		codigo, err := s.postulacionRepo.GenerarCodigoUnico(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("error generando código único: %w", err)
+		}
 
-			if err := s.postulacionRepo.CrearSinTx(ctx, postulacion); err != nil {
-				return nil, fmt.Errorf("error creando postulación: %w", err)
-			}
-		} else {
-			return nil, err
+		postulacion = &domain.Postulacion{
+			PostulanteID: postulanteID,
+			Codigo:       codigo,
+			Sector:       eleg.sector,
+			Estado:       domain.EstadoBorrador,
+		}
+
+		if err := s.postulacionRepo.Crear(ctx, postulacion); err != nil {
+			return nil, fmt.Errorf("error creando postulación: %w", err)
 		}
 	}
-
-	// Obtener datos personales del Registro Civil
-	registroCivilData, err := s.registroCivil.ObtenerDatos(ctx, cedula)
-	if err != nil {
-		return nil, fmt.Errorf("error obteniendo datos del registro civil: %w", err)
-	}
-
+	registroCivilData := eleg.registroCivil
 	// Obtener domicilio si existe
 	domicilio, err := s.domicilioRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("error obteniendo domicilio: %w", err)
 	}
 
 	// Obtener familiares si existen
 	familiares, err := s.familiaresRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("error obteniendo familiares: %w", err)
 	}
 
 	// Obtener respaldo si existe
 	respaldo, err := s.respaldosRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("error obteniendo respaldo: %w", err)
 	}
 
 	// Obtener formación si existe
 	formacion, err := s.formacionRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("error obteniendo formación: %w", err)
 	}
 
 	// Obtener experiencia si existe
 	experiencia, err := s.experienciaRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("error obteniendo experiencia: %w", err)
 	}
 
 	// Obtener inhabilidades si existen
 	inhabilidades, err := s.inhabilidadesRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil {
 		return nil, fmt.Errorf("error obteniendo inhabilidades: %w", err)
 	}
 
@@ -415,52 +386,54 @@ func (s *PostulacionService) ObtenerPostulacion(ctx context.Context, postulanteI
 	return response, nil
 }
 
-// EnviarPostulacion envía la postulación (cambia estado a "enviada" y genera código único)
-func (s *PostulacionService) EnviarPostulacion(ctx context.Context, postulanteID int) (string, error) {
+// EnviarPostulacion verifica elegibilidad y completitud y cambia el estado a "enviada", todo en una transacción
+func (s *PostulacionService) EnviarPostulacion(ctx context.Context, postulanteID int, cedula string, aceptaConsentimiento bool) (string, error) {
+	eleg, err := s.verificarElegibilidad(ctx, postulanteID, cedula, "")
+	if err != nil {
+		return "", err
+	}
+
 	var codigo string
-	if err := s.pg.WithTx(ctx, func(ctx context.Context, tx interface{}) error {
-		pgxTx, ok := tx.(pgx.Tx)
-		if !ok {
-			return fmt.Errorf("error: transaction is not pgx.Tx")
+	err = s.tx.WithTx(ctx, func(ctx context.Context) error {
+		postulacion, err := s.postulacionRepo.ObtenerPorPostulanteIDParaActualizar(ctx, postulanteID)
+		if errors.Is(err, domain.ErrNotFound) {
+			faltantes := evaluarCompletitud(&domain.ResumenCompletitud{}, eleg.sector, aceptaConsentimiento)
+			return domain.ErrPostulacionIncompleta.ConDetalles(domain.ErrPostulacionIncompleta.Message, map[string]any{"faltantes": faltantes})
+		}
+		if err != nil {
+			return fmt.Errorf("error obteniendo postulación: %w", err)
+		}
+		if err := verificarEditable(postulacion); err != nil {
+			return err
 		}
 
-		// Obtener postulación
-		postulacion, obtainErr := s.postulacionRepo.ObtenerPorPostulanteID(ctx, postulanteID)
-		if obtainErr != nil {
-			return fmt.Errorf("error obteniendo postulación: %w", obtainErr)
+		// Los datos personales siempre se toman del Registro Civil vigente
+		if err := s.guardarDatosPersonales(ctx, postulacion.ID, eleg.registroCivil); err != nil {
+			return err
 		}
 
-		// Hacer el envío idempotente: repetir la solicitud devuelve el código ya asignado.
-		if postulacion.Estado == "enviada" {
-			codigo = postulacion.Codigo
-			return nil
+		resumen, err := s.postulacionRepo.ResumenCompletitud(ctx, postulacion.ID)
+		if err != nil {
+			return err
+		}
+		if faltantes := evaluarCompletitud(resumen, postulacion.Sector, aceptaConsentimiento); len(faltantes) > 0 {
+			return domain.ErrPostulacionIncompleta.ConDetalles(domain.ErrPostulacionIncompleta.Message, map[string]any{"faltantes": faltantes})
 		}
 
-		// Solo se puede enviar una postulación en borrador.
-		if postulacion.Estado != "borrador" {
-			return &domain.AppError{
-				Code:    domain.ErrConflict.Code,
-				Message: "La postulación no está en estado borrador y no se puede enviar",
-				Err:     domain.ErrConflict,
-			}
-		}
-
-		// Generar código único definitivo
 		codigoGenerado, err := s.postulacionRepo.GenerarCodigoUnico(ctx)
 		if err != nil {
 			return fmt.Errorf("error generando código único: %w", err)
 		}
-		codigo = codigoGenerado
 
-		// Actualizar estado y código
-		postulacion.Estado = "enviada"
-		postulacion.Codigo = codigo
-		if err := s.postulacionRepo.Actualizar(ctx, pgxTx, postulacion); err != nil {
+		postulacion.Estado = domain.EstadoEnviada
+		postulacion.Codigo = codigoGenerado
+		if err := s.postulacionRepo.Actualizar(ctx, postulacion); err != nil {
 			return fmt.Errorf("error actualizando postulación: %w", err)
 		}
-
+		codigo = codigoGenerado
 		return nil
-	}); err != nil {
+	})
+	if err != nil {
 		return "", err
 	}
 

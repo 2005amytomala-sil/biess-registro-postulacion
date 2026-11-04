@@ -62,7 +62,7 @@ const DashboardPage = () => {
     switch (estado) {
       case 'completado': return 'bg-green-100 text-green-800 border-green-300';
       case 'en_progreso': return 'bg-blue-100 text-blue-800 border-blue-300';
-      default: return 'bg-gray-100 text-gray-800 border-gray-300';
+      default: return 'bg-slate-100 text-slate-800 border-slate-300';
     }
   };
 
@@ -91,10 +91,10 @@ const DashboardPage = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <div className="text-center">
           <Spinner />
-          <p className="mt-4 text-gray-600">Cargando estado de postulación...</p>
+          <p className="mt-4 text-slate-600">Cargando estado de postulación...</p>
         </div>
       </div>
     );
@@ -104,11 +104,11 @@ const DashboardPage = () => {
   const progreso = Math.round((fasesCompletadas / fases.length) * 100);
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-slate-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Bienvenido al Sistema de Postulación</h1>
-          <p className="text-gray-600 mt-2">
+          <h1 className="text-3xl font-bold text-slate-900">Bienvenido al Sistema de Postulación</h1>
+          <p className="text-slate-600 mt-2">
             Progreso de su postulación al concurso público de méritos del BIESS
           </p>
         </div>
@@ -137,10 +137,10 @@ const DashboardPage = () => {
               <>
                 <div className="flex items-center justify-between mb-4">
                   <div>
-                    <p className="text-sm text-gray-600">Progreso general</p>
-                    <p className="text-2xl font-bold text-gray-900">{progreso}%</p>
+                    <p className="text-sm text-slate-600">Progreso general</p>
+                    <p className="text-2xl font-bold text-slate-900">{progreso}%</p>
                   </div>
-                  <div className="w-32 bg-gray-200 rounded-full h-4">
+                  <div className="w-32 bg-slate-200 rounded-full h-4">
                     <div
                       className="bg-blue-600 h-4 rounded-full transition-all"
                       style={{ width: `${progreso}%` }}

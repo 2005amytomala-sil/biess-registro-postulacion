@@ -73,7 +73,7 @@ type FormacionAcademica struct {
 	Titulo               string    `json:"titulo"`
 	AreaEstudios         string    `json:"area_estudios,omitempty"`
 	RegistroSenescyt     string    `json:"registro_senescyt,omitempty"`
-	FechaRegistroSenescyt time.Time `json:"fecha_registro_senescyt,omitempty"`
+	FechaRegistroSenescyt Date      `json:"fecha_registro_senescyt"`
 	CreatedAt            time.Time `json:"created_at"`
 }
 
@@ -83,8 +83,8 @@ type ExperienciaProfesional struct {
 	Tipo                   string    `json:"tipo"`
 	Cargo                  string    `json:"cargo"`
 	Institucion            string    `json:"institucion"`
-	FechaInicio            time.Time `json:"fecha_inicio"`
-	FechaFin               *time.Time `json:"fecha_fin,omitempty"`
+	FechaInicio            Date      `json:"fecha_inicio"`
+	FechaFin               Date      `json:"fecha_fin"`
 	ActividadesRelacionadas string    `json:"actividades_relacionadas,omitempty"`
 	Descripcion            string    `json:"descripcion,omitempty"`
 	CreatedAt              time.Time `json:"created_at"`
@@ -98,13 +98,51 @@ type Inhabilidad struct {
 	CreatedAt      time.Time `json:"created_at"`
 }
 
+// GuardarPostulacionRequest: cada sección es opcional; nil significa "no vino en el request"
+// y esa sección no se toca. Una lista vacía ([]) sí reemplaza la sección por vacío.
 type GuardarPostulacionRequest struct {
-	Sector                string                    `json:"sector"`
-	Domicilio             DomicilioContacto         `json:"domicilio"`
-	TieneFamiliares       bool                      `json:"tiene_familiares"`
-	Familiares            []FamiliarIESS            `json:"familiares,omitempty"`
-	RespaldoOrganizacion  RespaldoOrganizacion     `json:"respaldo_organizacion"`
-	Formacion             []FormacionAcademica       `json:"formacion,omitempty"`
-	Experiencia           []ExperienciaProfesional   `json:"experiencia,omitempty"`
-	Inhabilidades         []Inhabilidad             `json:"inhabilidades,omitempty"`
+	Sector               string                   `json:"sector"`
+	Domicilio            *DomicilioContacto       `json:"domicilio"`
+	TieneFamiliares      *bool                    `json:"tiene_familiares"`
+	Familiares           []FamiliarIESS           `json:"familiares"`
+	RespaldoOrganizacion *RespaldoOrganizacion    `json:"respaldo_organizacion"`
+	Formacion            []FormacionAcademica     `json:"formacion"`
+	Experiencia          []ExperienciaProfesional `json:"experiencia"`
+	Inhabilidades        []Inhabilidad            `json:"inhabilidades"`
 }
+
+type EnviarPostulacionRequest struct {
+	AceptaConsentimiento bool `json:"acepta_consentimiento"`
+}
+
+// ResumenCompletitud refleja lo persistido de una postulación para validar el envío
+type ResumenCompletitud struct {
+	DatosPersonales            bool
+	Domicilio                  bool
+	Respaldo                   bool
+	TieneRespaldo              bool
+	NombreOrganizacion         string
+	InhabilidadesRespondidas   []string
+}
+
+// Faltante describe una sección incompleta que impide enviar la postulación
+type Faltante struct {
+	Seccion string `json:"seccion"`
+	Mensaje string `json:"mensaje"`
+}
+
+const (
+	EstadoBorrador = "borrador"
+	EstadoEnviada  = "enviada"
+	EstadoCerrada  = "cerrada"
+)
+
+var SectoresValidos = []string{"afiliados", "jubilados", "empleadores"}
+
+// CodigosInhabilidades son las preguntas 1.9.x que deben responderse antes de enviar
+var CodigosInhabilidades = []string{
+	"1.9.1", "1.9.2", "1.9.3", "1.9.4", "1.9.5", "1.9.6", "1.9.7",
+	"1.9.8", "1.9.9", "1.9.10", "1.9.11", "1.9.12", "1.9.13",
+}
+
+const CodigoInhabilidadConDetalle = "1.9.7"

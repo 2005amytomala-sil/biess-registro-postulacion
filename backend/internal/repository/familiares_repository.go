@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
-	"github.com/jackc/pgx/v5"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -17,16 +17,16 @@ func NewFamiliaresRepository(pool *pgxpool.Pool) *FamiliaresRepository {
 	return &FamiliaresRepository{pool: pool}
 }
 
-func (r *FamiliaresRepository) EliminarPorPostulacionID(ctx context.Context, tx pgx.Tx, postulacionID int) error {
+func (r *FamiliaresRepository) EliminarPorPostulacionID(ctx context.Context, postulacionID int) error {
 	query := `DELETE FROM familiares_iess WHERE postulacion_id = $1`
-	_, err := tx.Exec(ctx, query, postulacionID)
+	_, err := postgres.Conn(ctx, r.pool).Exec(ctx, query, postulacionID)
 	if err != nil {
 		return fmt.Errorf("error al eliminar familiares: %w", err)
 	}
 	return nil
 }
 
-func (r *FamiliaresRepository) Guardar(ctx context.Context, tx pgx.Tx, familiares []domain.FamiliarIESS) error {
+func (r *FamiliaresRepository) Guardar(ctx context.Context, familiares []domain.FamiliarIESS) error {
 	if len(familiares) == 0 {
 		return nil
 	}
@@ -35,7 +35,7 @@ func (r *FamiliaresRepository) Guardar(ctx context.Context, tx pgx.Tx, familiare
 	          VALUES ($1, $2, $3, $4, $5, $6)`
 
 	for _, familiar := range familiares {
-		_, err := tx.Exec(ctx, query,
+		_, err := postgres.Conn(ctx, r.pool).Exec(ctx, query,
 			familiar.PostulacionID,
 			familiar.Nombres,
 			familiar.Parentesco,
@@ -55,7 +55,7 @@ func (r *FamiliaresRepository) ObtenerPorPostulacionID(ctx context.Context, post
 	query := `SELECT id, postulacion_id, nombres, parentesco, institucion, area, cargo, created_at
 	          FROM familiares_iess WHERE postulacion_id = $1`
 
-	rows, err := r.pool.Query(ctx, query, postulacionID)
+	rows, err := postgres.Conn(ctx, r.pool).Query(ctx, query, postulacionID)
 	if err != nil {
 		return nil, fmt.Errorf("error al obtener familiares: %w", err)
 	}

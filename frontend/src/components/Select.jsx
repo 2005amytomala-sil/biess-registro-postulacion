@@ -1,17 +1,23 @@
+import { useId } from 'react';
+import FieldLabel, { FieldError, fieldClasses } from './FieldLabel';
+
 const Select = ({ label, options = [], error = '', className = '', loading = false, disabled = false, ...props }) => {
-  const baseClasses = 'w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors bg-white';
-  const errorClasses = error ? 'border-red-500 focus:ring-red-500' : 'border-gray-300';
-  const disabledClasses = disabled || loading ? 'opacity-50 cursor-not-allowed' : '';
-  const classes = `${baseClasses} ${errorClasses} ${disabledClasses} ${className}`;
+  const autoId = useId();
+  const id = props.id || autoId;
+  const errorId = `${id}-error`;
 
   return (
     <div className="w-full">
-      {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          {label}
-        </label>
-      )}
-      <select className={classes} disabled={disabled || loading} {...props}>
+      {label && <FieldLabel htmlFor={id} label={label} required={props.required} />}
+      <select
+        className={`${fieldClasses(error)} pr-8 ${loading ? 'animate-pulse' : ''} ${className}`}
+        disabled={disabled || loading}
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? errorId : undefined}
+        aria-busy={loading || undefined}
+        {...props}
+        id={id}
+      >
         {loading ? (
           <option value="">Cargando...</option>
         ) : (
@@ -22,9 +28,7 @@ const Select = ({ label, options = [], error = '', className = '', loading = fal
           ))
         )}
       </select>
-      {error && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
-      )}
+      <FieldError id={errorId} error={error} />
     </div>
   );
 };

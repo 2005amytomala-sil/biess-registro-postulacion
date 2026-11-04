@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
-	"github.com/jackc/pgx/v5"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -17,16 +17,16 @@ func NewExperienciaRepository(pool *pgxpool.Pool) *ExperienciaRepository {
 	return &ExperienciaRepository{pool: pool}
 }
 
-func (r *ExperienciaRepository) EliminarPorPostulacionID(ctx context.Context, tx pgx.Tx, postulacionID int) error {
+func (r *ExperienciaRepository) EliminarPorPostulacionID(ctx context.Context, postulacionID int) error {
 	query := `DELETE FROM experiencia_profesional WHERE postulacion_id = $1`
-	_, err := tx.Exec(ctx, query, postulacionID)
+	_, err := postgres.Conn(ctx, r.pool).Exec(ctx, query, postulacionID)
 	if err != nil {
 		return fmt.Errorf("error al eliminar experiencia: %w", err)
 	}
 	return nil
 }
 
-func (r *ExperienciaRepository) Guardar(ctx context.Context, tx pgx.Tx, experiencia []domain.ExperienciaProfesional) error {
+func (r *ExperienciaRepository) Guardar(ctx context.Context, experiencia []domain.ExperienciaProfesional) error {
 	if len(experiencia) == 0 {
 		return nil
 	}
@@ -35,7 +35,7 @@ func (r *ExperienciaRepository) Guardar(ctx context.Context, tx pgx.Tx, experien
 	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 	for _, exp := range experiencia {
-		_, err := tx.Exec(ctx, query,
+		_, err := postgres.Conn(ctx, r.pool).Exec(ctx, query,
 			exp.PostulacionID,
 			exp.Tipo,
 			exp.Cargo,
@@ -57,7 +57,7 @@ func (r *ExperienciaRepository) ObtenerPorPostulacionID(ctx context.Context, pos
 	query := `SELECT id, postulacion_id, tipo, cargo, institucion, fecha_inicio, fecha_fin, actividades_relacionadas, descripcion, created_at
 	          FROM experiencia_profesional WHERE postulacion_id = $1`
 
-	rows, err := r.pool.Query(ctx, query, postulacionID)
+	rows, err := postgres.Conn(ctx, r.pool).Query(ctx, query, postulacionID)
 	if err != nil {
 		return nil, fmt.Errorf("error al obtener experiencia: %w", err)
 	}

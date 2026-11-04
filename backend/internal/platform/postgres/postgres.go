@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/config"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -56,9 +58,30 @@ func (p *Postgres) Ping(ctx context.Context) error {
 	return p.pool.Ping(ctx)
 }
 
-// WithTx ejecuta una función dentro de una transacción
-// BEGIN se ejecuta al inicio, COMMIT si no hay error, ROLLBACK en caso contrario
-func (p *Postgres) WithTx(ctx context.Context, fn func(ctx context.Context, tx interface{}) error) error {
+type txKey struct{}
+
+// DBTX es el subconjunto común de pgxpool.Pool y pgx.Tx que usan los repositorios
+type DBTX interface {
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
+	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
+
+// Conn devuelve la transacción activa en el contexto o, si no hay, el pool
+func Conn(ctx context.Context, pool *pgxpool.Pool) DBTX {
+	if tx, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
+		return tx
+	}
+	return pool
+}
+
+// WithTx implementa domain.TxManager: BEGIN al inicio, COMMIT si fn no falla, ROLLBACK en caso contrario.
+// La transacción viaja en el contexto; si ya hay una activa, fn se ejecuta dentro de ella.
+func (p *Postgres) WithTx(ctx context.Context, fn func(ctx context.Context) error) error {
+	if _, ok := ctx.Value(txKey{}).(pgx.Tx); ok {
+		return fn(ctx)
+	}
+
 	tx, err := p.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("error al iniciar transacción: %w", err)
@@ -71,7 +94,7 @@ func (p *Postgres) WithTx(ctx context.Context, fn func(ctx context.Context, tx i
 		}
 	}()
 
-	if err := fn(ctx, tx); err != nil {
+	if err := fn(context.WithValue(ctx, txKey{}, tx)); err != nil {
 		if rbErr := tx.Rollback(ctx); rbErr != nil {
 			return fmt.Errorf("error en rollback: %v (error original: %w)", rbErr, err)
 		}

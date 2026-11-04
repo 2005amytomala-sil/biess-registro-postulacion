@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,7 +19,7 @@ func NewDomicilioRepository(pool *pgxpool.Pool) *DomicilioRepository {
 	return &DomicilioRepository{pool: pool}
 }
 
-func (r *DomicilioRepository) Guardar(ctx context.Context, tx pgx.Tx, domicilio *domain.DomicilioContacto) error {
+func (r *DomicilioRepository) Guardar(ctx context.Context, domicilio *domain.DomicilioContacto) error {
 	query := `INSERT INTO domicilio_contacto 
 	          (postulacion_id, pais_id, provincia_id, canton_id, provincia_texto, ciudad_texto, celular, correo_1, correo_2, 
 	           calle_principal, numero, calle_secundaria, sector, referencia, telefono_domicilio)
@@ -38,7 +40,7 @@ func (r *DomicilioRepository) Guardar(ctx context.Context, tx pgx.Tx, domicilio 
 	          referencia = EXCLUDED.referencia,
 	          telefono_domicilio = EXCLUDED.telefono_domicilio`
 
-	_, err := tx.Exec(ctx, query,
+	_, err := postgres.Conn(ctx, r.pool).Exec(ctx, query,
 		domicilio.PostulacionID,
 		domicilio.PaisID,
 		domicilio.ProvinciaID,
@@ -69,7 +71,7 @@ func (r *DomicilioRepository) ObtenerPorPostulacionID(ctx context.Context, postu
 	          FROM domicilio_contacto WHERE postulacion_id = $1`
 
 	var domicilio domain.DomicilioContacto
-	err := r.pool.QueryRow(ctx, query, postulacionID).Scan(
+	err := postgres.Conn(ctx, r.pool).QueryRow(ctx, query, postulacionID).Scan(
 		&domicilio.PostulacionID,
 		&domicilio.PaisID,
 		&domicilio.ProvinciaID,
@@ -88,6 +90,9 @@ func (r *DomicilioRepository) ObtenerPorPostulacionID(ctx context.Context, postu
 		&domicilio.CreatedAt,
 	)
 
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("error al obtener domicilio: %w", err)
 	}

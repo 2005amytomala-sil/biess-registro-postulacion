@@ -117,6 +117,11 @@ func (m *RegistroCivilMock) VerificarIdentidad(ctx context.Context, cedula strin
 		return nil, domain.ErrIdentidadInvalida
 	}
 
+	// Al menos uno de los campos debe proporcionarse
+	if fechaExpedicion == "" && codigoDactilar == "" {
+		return nil, domain.ErrIdentidadInvalida
+	}
+
 	// Verificar fecha de expedición si se proporciona
 	if fechaExpedicion != "" && data.FechaExpedicion != fechaExpedicion {
 		return nil, domain.ErrIdentidadInvalida

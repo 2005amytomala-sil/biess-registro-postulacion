@@ -1,9 +1,9 @@
-const Alert = ({ type = 'info', message, onClose }) => {
+const Alert = ({ type = 'info', message, onClose, className = '' }) => {
   const types = {
-    success: 'bg-green-50 border-green-500 text-green-800',
-    error: 'bg-red-50 border-red-500 text-red-800',
-    warning: 'bg-yellow-50 border-yellow-500 text-yellow-800',
-    info: 'bg-blue-50 border-blue-500 text-blue-800',
+    success: 'bg-emerald-50 border-emerald-200 text-emerald-900 [&_svg]:text-emerald-600',
+    error: 'bg-red-50 border-red-200 text-red-900 [&_svg]:text-red-600',
+    warning: 'bg-amber-50 border-amber-200 text-amber-900 [&_svg]:text-amber-600',
+    info: 'bg-blue-50 border-blue-200 text-blue-900 [&_svg]:text-blue-600',
   };
 
   const icons = {
@@ -29,20 +29,24 @@ const Alert = ({ type = 'info', message, onClose }) => {
     ),
   };
 
-  const classes = `border-l-4 p-4 rounded-md ${types[type]}`;
+  if (!message) return null;
+
+  const classes = `rounded-lg border p-4 shadow-sm ${types[type] || types.info} ${className}`;
 
   return (
-    <div className={classes}>
-      <div className="flex">
-        <div className="flex-shrink-0">{icons[type]}</div>
+    <div className={classes} role={type === 'error' || type === 'warning' ? 'alert' : 'status'}>
+      <div className="flex items-start">
+        <div className="flex-shrink-0 pt-0.5">{icons[type]}</div>
         <div className="ml-3 flex-1">
-          <p className="text-sm">{message}</p>
+          <p className="text-sm font-medium leading-5">{message}</p>
         </div>
         {onClose && (
           <div className="ml-auto pl-3">
             <button
+              type="button"
               onClick={onClose}
-              className="inline-flex text-gray-400 hover:text-gray-500 focus:outline-none"
+              aria-label="Cerrar mensaje"
+              className="inline-flex rounded-md p-0.5 opacity-70 transition-opacity hover:opacity-100 [&_svg]:text-current"
             >
               <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
