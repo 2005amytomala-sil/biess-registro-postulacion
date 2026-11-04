@@ -36,3 +36,22 @@ func (r *RespaldoRepository) Guardar(ctx context.Context, tx pgx.Tx, respaldo *d
 
 	return nil
 }
+
+func (r *RespaldoRepository) ObtenerPorPostulacionID(ctx context.Context, postulacionID int) (*domain.RespaldoOrganizacion, error) {
+	query := `SELECT postulacion_id, tiene_respaldo, nombre_organizacion, created_at
+	          FROM respaldo_organizacion WHERE postulacion_id = $1`
+
+	var respaldo domain.RespaldoOrganizacion
+	err := r.pool.QueryRow(ctx, query, postulacionID).Scan(
+		&respaldo.PostulacionID,
+		&respaldo.TieneRespaldo,
+		&respaldo.NombreOrganizacion,
+		&respaldo.CreatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener respaldo: %w", err)
+	}
+
+	return &respaldo, nil
+}

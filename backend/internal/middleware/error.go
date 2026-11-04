@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
@@ -25,6 +26,9 @@ func ErrorHandler() gin.HandlerFunc {
 			if errors.As(err, &appErr) {
 				// Handle domain errors
 				status := httpStatusFromAppError(appErr)
+				if status >= 500 {
+					log.Printf("[ERROR INTERNO] %s %s: %s | %v", c.Request.Method, c.Request.URL.Path, appErr.Code, appErr.Err)
+				}
 				c.JSON(status, ErrorResponse{
 					Error:  appErr.Message,
 					Codigo: appErr.Code,
@@ -33,6 +37,7 @@ func ErrorHandler() gin.HandlerFunc {
 			}
 
 			// Handle unknown errors
+			log.Printf("[ERROR INTERNO] %s %s: %v", c.Request.Method, c.Request.URL.Path, err)
 			c.JSON(http.StatusInternalServerError, ErrorResponse{
 				Error:  "Error interno del servidor",
 				Codigo: "INTERNAL",

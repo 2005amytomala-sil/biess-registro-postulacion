@@ -5,6 +5,10 @@ import DatosPersonales from '../components/DatosPersonales';
 import DomicilioContacto from '../components/DomicilioContacto';
 import FamiliaresIESS from '../components/FamiliaresIESS';
 import SeleccionCargo from '../components/SeleccionCargo';
+import FormacionAcademica from '../components/postulacion/FormacionAcademica';
+import ExperienciaProfesional from '../components/postulacion/ExperienciaProfesional';
+import Inhabilidades from '../components/postulacion/Inhabilidades';
+import Consentimiento from '../components/postulacion/Consentimiento';
 import Card from '../components/Card';
 import Alert from '../components/Alert';
 import Spinner from '../components/Spinner';
@@ -46,6 +50,10 @@ const PostulacionPage = () => {
       nombre_organizacion: '',
     },
   });
+  const [formacion, setFormacion] = useState([]);
+  const [experiencia, setExperiencia] = useState([]);
+  const [inhabilidades, setInhabilidades] = useState([]);
+  const [postulacionEnviada, setPostulacionEnviada] = useState(false);
   const [postulacionCerrada, setPostulacionCerrada] = useState(false);
 
   const steps = [
@@ -53,6 +61,10 @@ const PostulacionPage = () => {
     { id: 2, title: 'Domicilio y Contacto', subtitle: 'Dirección y medios de contacto' },
     { id: 3, title: 'Información Adicional', subtitle: 'Familiares y formación' },
     { id: 4, title: 'Selección del Cargo', subtitle: 'Sector y respaldo' },
+    { id: 5, title: 'Formación Académica', subtitle: 'Estudios realizados' },
+    { id: 6, title: 'Experiencia Profesional', subtitle: 'Trayectoria laboral' },
+    { id: 7, title: 'Inhabilidades', subtitle: 'Declaración de inhabilidades' },
+    { id: 8, title: 'Consentimiento', subtitle: 'Envío de postulación' },
   ];
 
   // Cargar postulación al montar
@@ -68,16 +80,54 @@ const PostulacionPage = () => {
 
     if (result.success) {
       setPostulacion(result.data);
-      // Los datos personales se obtienen del backend y se mostrarán en el componente
-      setDatosPersonales({
-        nombres: 'Juan Carlos', // Estos datos vendrán del backend
-        apellidos: 'Pérez López',
-        cedula: '0101010101',
-        genero: 'masculino',
-        fecha_nacimiento: '01/01/1980',
-        nacionalidad: 'Ecuatoriana',
-        estado_civil: 'soltero',
-      });
+      // Los datos personales se obtienen del backend (datos_personales del Registro Civil)
+      if (result.data.datos_personales) {
+        const dp = result.data.datos_personales;
+        setDatosPersonales({
+          nombres: dp.nombres,
+          apellidos: dp.apellidos,
+          cedula: dp.cedula,
+          genero: dp.genero,
+          fecha_nacimiento: dp.fecha_nacimiento,
+          nacionalidad: dp.nacionalidad,
+          estado_civil: dp.estado_civil,
+          pareja_nombres: dp.pareja_nombres || '',
+          pareja_cedula: dp.pareja_cedula || '',
+        });
+      } else {
+        // Si no hay datos personales, mostramos mensaje informativo
+        setDatosPersonales(null);
+      }
+      // Cargar domicilio si existe
+      if (result.data.domicilio) {
+        setDomicilio(result.data.domicilio);
+      }
+      // Cargar familiares si existe
+      if (result.data.familiares) {
+        setFamiliares({
+          tiene_familiares: result.data.tiene_familiares,
+          familiares: result.data.familiares,
+        });
+      }
+      // Cargar cargo si existe
+      if (result.data.respaldo_organizacion) {
+        setCargo({
+          sector: result.data.sector || 'afiliados',
+          respaldo_organizacion: result.data.respaldo_organizacion,
+        });
+      }
+      // Cargar formación si existe
+      if (result.data.formacion) {
+        setFormacion(result.data.formacion);
+      }
+      // Cargar experiencia si existe
+      if (result.data.experiencia) {
+        setExperiencia(result.data.experiencia);
+      }
+      // Cargar inhabilidades si existen
+      if (result.data.inhabilidades) {
+        setInhabilidades(result.data.inhabilidades);
+      }
     } else if (result.message.includes('no existe')) {
       // No existe postulación, crearemos una nueva al guardar
       setPostulacion(null);
@@ -243,6 +293,88 @@ const PostulacionPage = () => {
     setSaving(false);
   };
 
+  const handleFormacionChange = (newFormacion) => {
+    setFormacion(newFormacion);
+  };
+
+  const handleGuardarFormacion = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const datosAGuardar = {
+      sector: postulacion?.sector || 'afiliados',
+      formacion: formacion,
+    };
+
+    const result = await guardarPostulacion(datosAGuardar);
+
+    if (result.success) {
+      setSuccessMessage('Formación académica guardada exitosamente');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } else {
+      setError(result.message);
+    }
+
+    setSaving(false);
+  };
+
+  const handleExperienciaChange = (newExperiencia) => {
+    setExperiencia(newExperiencia);
+  };
+
+  const handleGuardarExperiencia = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const datosAGuardar = {
+      sector: postulacion?.sector || 'afiliados',
+      experiencia: experiencia,
+    };
+
+    const result = await guardarPostulacion(datosAGuardar);
+
+    if (result.success) {
+      setSuccessMessage('Experiencia profesional guardada exitosamente');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } else {
+      setError(result.message);
+    }
+
+    setSaving(false);
+  };
+
+  const handleInhabilidadesChange = (newInhabilidades) => {
+    setInhabilidades(newInhabilidades);
+  };
+
+  const handleGuardarInhabilidades = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const datosAGuardar = {
+      sector: postulacion?.sector || 'afiliados',
+      inhabilidades: inhabilidades,
+    };
+
+    const result = await guardarPostulacion(datosAGuardar);
+
+    if (result.success) {
+      setSuccessMessage('Inhabilidades guardadas exitosamente');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } else {
+      setError(result.message);
+    }
+
+    setSaving(false);
+  };
+
+  const handleEnviarPostulacion = () => {
+    setPostulacionEnviada(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -341,34 +473,75 @@ const PostulacionPage = () => {
               error={error}
             />
           )}
+
+          {currentStep === 4 && (
+            <FormacionAcademica
+              datos={formacion}
+              onChange={handleFormacionChange}
+              onSave={handleGuardarFormacion}
+              saving={saving}
+              error={error}
+            />
+          )}
+
+          {currentStep === 5 && (
+            <ExperienciaProfesional
+              datos={experiencia}
+              onChange={handleExperienciaChange}
+              onSave={handleGuardarExperiencia}
+              saving={saving}
+              error={error}
+            />
+          )}
+
+          {currentStep === 6 && (
+            <Inhabilidades
+              datos={inhabilidades}
+              onChange={handleInhabilidadesChange}
+              onSave={handleGuardarInhabilidades}
+              saving={saving}
+              error={error}
+            />
+          )}
+
+          {currentStep === 7 && (
+            <Consentimiento
+              postulacion={postulacion}
+              onEnviar={handleEnviarPostulacion}
+              saving={saving}
+              error={error}
+            />
+          )}
         </div>
 
         <div className="mt-6 flex justify-between">
           <button
             onClick={handlePrevious}
-            disabled={currentStep === 0}
+            disabled={currentStep === 0 || postulacionEnviada}
             className="px-4 py-2 bg-gray-200 text-gray-900 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Anterior
           </button>
 
-          <div className="flex gap-3">
-            <button
-              onClick={handleGuardar}
-              disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? 'Guardando...' : 'Guardar Progreso'}
-            </button>
+          {!postulacionEnviada && (
+            <div className="flex gap-3">
+              <button
+                onClick={handleGuardar}
+                disabled={saving || currentStep === 7}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Guardando...' : 'Guardar Progreso'}
+              </button>
 
-            <button
-              onClick={handleNext}
-              disabled={currentStep === steps.length - 1}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {currentStep === steps.length - 1 ? 'Finalizar' : 'Siguiente'}
-            </button>
-          </div>
+              <button
+                onClick={handleNext}
+                disabled={currentStep === steps.length - 1}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {currentStep === steps.length - 1 ? 'Finalizar' : 'Siguiente'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

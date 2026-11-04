@@ -50,3 +50,35 @@ func (r *FamiliaresRepository) Guardar(ctx context.Context, tx pgx.Tx, familiare
 
 	return nil
 }
+
+func (r *FamiliaresRepository) ObtenerPorPostulacionID(ctx context.Context, postulacionID int) ([]domain.FamiliarIESS, error) {
+	query := `SELECT id, postulacion_id, nombres, parentesco, institucion, area, cargo, created_at
+	          FROM familiares_iess WHERE postulacion_id = $1`
+
+	rows, err := r.pool.Query(ctx, query, postulacionID)
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener familiares: %w", err)
+	}
+	defer rows.Close()
+
+	var familiares []domain.FamiliarIESS
+	for rows.Next() {
+		var familiar domain.FamiliarIESS
+		err := rows.Scan(
+			&familiar.ID,
+			&familiar.PostulacionID,
+			&familiar.Nombres,
+			&familiar.Parentesco,
+			&familiar.Institucion,
+			&familiar.Area,
+			&familiar.Cargo,
+			&familiar.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error escaneando familiar: %w", err)
+		}
+		familiares = append(familiares, familiar)
+	}
+
+	return familiares, nil
+}
