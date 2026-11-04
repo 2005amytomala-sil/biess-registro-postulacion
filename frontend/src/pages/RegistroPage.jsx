@@ -39,7 +39,7 @@ const RegistroPage = () => {
 
   const validateCodigoDactilar = (codigo) => {
     if (!codigo) return 'El código dactilar es requerido';
-    if (!/^\d{10}$/.test(codigo)) return 'El código dactilar debe tener 10 dígitos';
+    if (!/^[A-Z]\d{4}[A-Z]\d{4}$/i.test(codigo.trim())) return 'Use 10 caracteres: letras en la posición 1 y 6, y números en las demás';
     return '';
   };
 
@@ -189,7 +189,7 @@ const RegistroPage = () => {
                 onChange={handleChange}
                 options={[
                   { value: 'fecha', label: 'Fecha de expedición (DD/MM/AAAA)' },
-                  { value: 'codigo', label: 'Código dactilar (10 dígitos)' },
+                  { value: 'codigo', label: 'Código dactilar (10 caracteres)' },
                 ]}
               />
               {formData.tipoValidacion === 'fecha' ? (
@@ -210,7 +210,7 @@ const RegistroPage = () => {
                   type="text"
                   value={formData.codigoDactilar}
                   onChange={handleChange}
-                  placeholder="Ingrese código dactilar (10 dígitos)"
+                  placeholder="Ingrese código dactilar (10 caracteres)"
                   error={errors.codigoDactilar}
                   required
                 />
