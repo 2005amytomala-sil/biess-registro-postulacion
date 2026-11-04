@@ -11,14 +11,16 @@ type Handler struct {
 	health           *HealthHandler
 	auth             *AuthHandler
 	catalogo         *CatalogoHandler
+	postulacion      *PostulacionHandler
 	authMiddleware   *middleware.AuthMiddleware
 }
 
-func NewHandler(pg *postgres.Postgres, rdb *redis.Redis, auth *AuthHandler, catalogo *CatalogoHandler, authMiddleware *middleware.AuthMiddleware) *Handler {
+func NewHandler(pg *postgres.Postgres, rdb *redis.Redis, auth *AuthHandler, catalogo *CatalogoHandler, postulacion *PostulacionHandler, authMiddleware *middleware.AuthMiddleware) *Handler {
 	return &Handler{
 		health:         NewHealthHandler(pg, rdb),
 		auth:           auth,
 		catalogo:       catalogo,
+		postulacion:    postulacion,
 		authMiddleware: authMiddleware,
 	}
 }
@@ -43,5 +45,14 @@ func (h *Handler) RegisterRoutes(r *gin.Engine) {
 		catalogos.GET("/paises", h.catalogo.ObtenerPaises)
 		catalogos.GET("/provincias", h.catalogo.ObtenerProvincias)
 		catalogos.GET("/provincias/:id/cantones", h.catalogo.ObtenerCantonesPorProvincia)
+	}
+
+	// Postulacion routes (protegidas con JWT)
+	postulaciones := r.Group("/api/v1/postulaciones")
+	postulaciones.Use(h.authMiddleware.RequireAuth())
+	{
+		postulaciones.GET("/me", h.postulacion.ObtenerPostulacion)
+		postulaciones.PUT("/me", h.postulacion.GuardarPostulacion)
+		postulaciones.POST("/me/enviar", h.postulacion.EnviarPostulacion)
 	}
 }

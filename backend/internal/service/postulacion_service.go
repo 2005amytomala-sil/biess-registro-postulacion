@@ -57,7 +57,7 @@ func NewPostulacionService(
 }
 
 // GuardarPostulacion guarda o actualiza una postulación dentro de una transacción
-func (s *PostulacionService) GuardarPostulacion(ctx context.Context, postulanteID int, req *domain.GuardarPostulacionRequest) error {
+func (s *PostulacionService) GuardarPostulacion(ctx context.Context, postulanteID int, cedula string, req *domain.GuardarPostulacionRequest) error {
 	// Iniciar transacción
 	if err := s.pg.WithTx(ctx, func(ctx context.Context, tx interface{}) error {
 		pgxTx, ok := tx.(pgx.Tx)
@@ -94,13 +94,10 @@ func (s *PostulacionService) GuardarPostulacion(ctx context.Context, postulanteI
 			}
 		}
 
-		// 2. Obtener datos personales desde Registro Civil (mock)
-		// Necesitamos la cédula del postulante - por ahora asumimos que viene del token
-		// En la implementación real, obtendríamos la cédula del postulante desde su registro
-		// Para este caso, simulamos obteniendo datos del registro civil
-		registroCivilData, err := s.registroCivil.VerificarIdentidad(ctx, "0101010101", "", "")
+		// 2. Obtener datos personales desde Registro Civil (usando cédula del JWT)
+		registroCivilData, err := s.registroCivil.ObtenerDatos(ctx, cedula)
 		if err != nil {
-			return fmt.Errorf("error verificando identidad con registro civil: %w", err)
+			return fmt.Errorf("error obteniendo datos del registro civil: %w", err)
 		}
 
 		// 3. Validar nacionalidad
@@ -115,7 +112,7 @@ func (s *PostulacionService) GuardarPostulacion(ctx context.Context, postulanteI
 		}
 
 		// 4. Validar sector con Historial Laboral
-		valido, mensaje, err := s.historialLaboral.VerificarSector(ctx, "0101010101", req.Sector)
+		valido, mensaje, err := s.historialLaboral.VerificarSector(ctx, cedula, req.Sector)
 		if err != nil {
 			return fmt.Errorf("error verificando sector: %w", err)
 		}

@@ -70,7 +70,34 @@ func main() {
 	catalogoService := service.NewCatalogoService(catalogoRepo, catalogoCache, log.Default())
 	catalogoHandler := handler.NewCatalogoHandler(catalogoService)
 
-	h := handler.NewHandler(pg, redisClient, authHandler, catalogoHandler, authMiddleware)
+	// Postulacion dependencies
+	postulacionRepo := repository.NewPostulacionRepository(pg.Pool())
+	datosPersonalesRepo := repository.NewDatosPersonalesRepository(pg.Pool())
+	domicilioRepo := repository.NewDomicilioRepository(pg.Pool())
+	familiaresRepo := repository.NewFamiliaresRepository(pg.Pool())
+	respaldosRepo := repository.NewRespaldoRepository(pg.Pool())
+	formacionRepo := repository.NewFormacionRepository(pg.Pool())
+	experienciaRepo := repository.NewExperienciaRepository(pg.Pool())
+	inhabilidadesRepo := repository.NewInhabilidadesRepository(pg.Pool())
+	historialLaboral := mocks.NewHistorialLaboralMock()
+
+	postulacionService := service.NewPostulacionService(
+		pg,
+		postulacionRepo,
+		datosPersonalesRepo,
+		domicilioRepo,
+		familiaresRepo,
+		respaldosRepo,
+		formacionRepo,
+		experienciaRepo,
+		inhabilidadesRepo,
+		registroCivil,
+		historialLaboral,
+		catalogoRepo,
+	)
+	postulacionHandler := handler.NewPostulacionHandler(postulacionService)
+
+	h := handler.NewHandler(pg, redisClient, authHandler, catalogoHandler, postulacionHandler, authMiddleware)
 
 	// Setup router
 	r := gin.New()
