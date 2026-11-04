@@ -44,3 +44,7 @@ type CatalogoCache interface {
 	GuardarCantonesPorProvincia(ctx context.Context, provinciaID int, cantones []Canton, ttl int) error
 	InvalidarCatalogos(ctx context.Context) error
 }
+
+type HistorialLaboralClient interface {
+	VerificarSector(ctx context.Context, cedula string, sector string) (bool, string, error)
+}
