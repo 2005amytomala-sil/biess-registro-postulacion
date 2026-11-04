@@ -109,12 +109,14 @@ func (h *PostulacionHandler) EnviarPostulacion(c *gin.Context) {
 		return
 	}
 
-	if err := h.postulacionService.EnviarPostulacion(c.Request.Context(), postulanteID); err != nil {
+	codigo, err := h.postulacionService.EnviarPostulacion(c.Request.Context(), postulanteID)
+	if err != nil {
 		c.Error(err)
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Postulación enviada exitosamente",
+		"codigo":  codigo,
 	})
 }

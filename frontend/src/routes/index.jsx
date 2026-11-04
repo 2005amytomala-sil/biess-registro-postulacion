@@ -4,6 +4,7 @@ import ProtectedRoute from './ProtectedRoute';
 import LoginPage from '../pages/LoginPage';
 import RegistroPage from '../pages/RegistroPage';
 import RecuperarPage from '../pages/RecuperarPage';
+import DashboardPage from '../pages/DashboardPage';
 import PostulacionPage from '../pages/PostulacionPage';
 
 const AppRoutes = () => {
@@ -14,6 +15,14 @@ const AppRoutes = () => {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/registro" element={<RegistroPage />} />
           <Route path="/recuperar" element={<RecuperarPage />} />
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/postulacion"
             element={

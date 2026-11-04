@@ -94,6 +94,9 @@ const PostulacionPage = () => {
           pareja_nombres: dp.pareja_nombres || '',
           pareja_cedula: dp.pareja_cedula || '',
         });
+      } else {
+        // Si no hay datos personales, mostramos mensaje informativo
+        setDatosPersonales(null);
       }
       // Cargar domicilio si existe
       if (result.data.domicilio) {

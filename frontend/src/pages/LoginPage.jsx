@@ -60,7 +60,7 @@ const LoginPage = () => {
     setLoading(false);
 
     if (result.success) {
-      navigate('/postulacion');
+      navigate('/dashboard');
     } else {
       if (result.retryAfter) {
         setBloqueado(true);
