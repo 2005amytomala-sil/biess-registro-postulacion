@@ -13,6 +13,7 @@ type PostulanteRepository interface {
 
 type RegistroCivilClient interface {
 	VerificarIdentidad(ctx context.Context, cedula string, fechaExpedicion string, codigoDactilar string) (*RegistroCivilData, error)
+	ObtenerDatos(ctx context.Context, cedula string) (*RegistroCivilData, error)
 }
 
 type IntentosLimiter interface {

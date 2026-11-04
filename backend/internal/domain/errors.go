@@ -46,4 +46,5 @@ var (
 	ErrYaRegistrado       = NewAppError("YA_REGISTRADO", "El usuario ya está registrado", nil)
 	ErrPasswordMismatch   = NewAppError("PASSWORD_MISMATCH", "Las contraseñas no coinciden", nil)
 	ErrTokenInvalido      = NewAppError("TOKEN_INVALIDO", "Token inválido o expirado", nil)
+	ErrNoAutorizado       = NewAppError("NO_AUTORIZADO", "Sesión inválida o expirada", nil)
 )

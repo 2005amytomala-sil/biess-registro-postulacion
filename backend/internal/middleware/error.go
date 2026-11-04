@@ -69,6 +69,8 @@ func httpStatusFromAppError(err *domain.AppError) int {
 		return http.StatusUnauthorized
 	case "BLOQUEADO":
 		return http.StatusTooManyRequests
+	case "NO_AUTORIZADO":
+		return http.StatusUnauthorized
 	default:
 		return http.StatusInternalServerError
 	}
