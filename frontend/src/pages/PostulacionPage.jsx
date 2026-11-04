@@ -7,6 +7,8 @@ import FamiliaresIESS from '../components/FamiliaresIESS';
 import SeleccionCargo from '../components/SeleccionCargo';
 import FormacionAcademica from '../components/postulacion/FormacionAcademica';
 import ExperienciaProfesional from '../components/postulacion/ExperienciaProfesional';
+import Inhabilidades from '../components/postulacion/Inhabilidades';
+import Consentimiento from '../components/postulacion/Consentimiento';
 import Card from '../components/Card';
 import Alert from '../components/Alert';
 import Spinner from '../components/Spinner';
@@ -50,6 +52,8 @@ const PostulacionPage = () => {
   });
   const [formacion, setFormacion] = useState([]);
   const [experiencia, setExperiencia] = useState([]);
+  const [inhabilidades, setInhabilidades] = useState([]);
+  const [postulacionEnviada, setPostulacionEnviada] = useState(false);
   const [postulacionCerrada, setPostulacionCerrada] = useState(false);
 
   const steps = [
@@ -59,6 +63,8 @@ const PostulacionPage = () => {
     { id: 4, title: 'Selección del Cargo', subtitle: 'Sector y respaldo' },
     { id: 5, title: 'Formación Académica', subtitle: 'Estudios realizados' },
     { id: 6, title: 'Experiencia Profesional', subtitle: 'Trayectoria laboral' },
+    { id: 7, title: 'Inhabilidades', subtitle: 'Declaración de inhabilidades' },
+    { id: 8, title: 'Consentimiento', subtitle: 'Envío de postulación' },
   ];
 
   // Cargar postulación al montar
@@ -114,6 +120,10 @@ const PostulacionPage = () => {
       // Cargar experiencia si existe
       if (result.data.experiencia) {
         setExperiencia(result.data.experiencia);
+      }
+      // Cargar inhabilidades si existen
+      if (result.data.inhabilidades) {
+        setInhabilidades(result.data.inhabilidades);
       }
     } else if (result.message.includes('no existe')) {
       // No existe postulación, crearemos una nueva al guardar
@@ -332,6 +342,36 @@ const PostulacionPage = () => {
     setSaving(false);
   };
 
+  const handleInhabilidadesChange = (newInhabilidades) => {
+    setInhabilidades(newInhabilidades);
+  };
+
+  const handleGuardarInhabilidades = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const datosAGuardar = {
+      sector: postulacion?.sector || 'afiliados',
+      inhabilidades: inhabilidades,
+    };
+
+    const result = await guardarPostulacion(datosAGuardar);
+
+    if (result.success) {
+      setSuccessMessage('Inhabilidades guardadas exitosamente');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } else {
+      setError(result.message);
+    }
+
+    setSaving(false);
+  };
+
+  const handleEnviarPostulacion = () => {
+    setPostulacionEnviada(true);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -450,34 +490,55 @@ const PostulacionPage = () => {
               error={error}
             />
           )}
+
+          {currentStep === 6 && (
+            <Inhabilidades
+              datos={inhabilidades}
+              onChange={handleInhabilidadesChange}
+              onSave={handleGuardarInhabilidades}
+              saving={saving}
+              error={error}
+            />
+          )}
+
+          {currentStep === 7 && (
+            <Consentimiento
+              postulacion={postulacion}
+              onEnviar={handleEnviarPostulacion}
+              saving={saving}
+              error={error}
+            />
+          )}
         </div>
 
         <div className="mt-6 flex justify-between">
           <button
             onClick={handlePrevious}
-            disabled={currentStep === 0}
+            disabled={currentStep === 0 || postulacionEnviada}
             className="px-4 py-2 bg-gray-200 text-gray-900 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Anterior
           </button>
 
-          <div className="flex gap-3">
-            <button
-              onClick={handleGuardar}
-              disabled={saving}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {saving ? 'Guardando...' : 'Guardar Progreso'}
-            </button>
+          {!postulacionEnviada && (
+            <div className="flex gap-3">
+              <button
+                onClick={handleGuardar}
+                disabled={saving || currentStep === 7}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {saving ? 'Guardando...' : 'Guardar Progreso'}
+              </button>
 
-            <button
-              onClick={handleNext}
-              disabled={currentStep === steps.length - 1}
-              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {currentStep === steps.length - 1 ? 'Finalizar' : 'Siguiente'}
-            </button>
-          </div>
+              <button
+                onClick={handleNext}
+                disabled={currentStep === steps.length - 1}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {currentStep === steps.length - 1 ? 'Finalizar' : 'Siguiente'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>
