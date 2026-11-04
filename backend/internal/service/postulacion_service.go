@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -12,18 +13,18 @@ import (
 )
 
 type PostulacionService struct {
-	pg                     *postgres.Postgres
-	postulacionRepo        *repository.PostulacionRepository
-	datosPersonalesRepo    *repository.DatosPersonalesRepository
-	domicilioRepo          *repository.DomicilioRepository
-	familiaresRepo         *repository.FamiliaresRepository
-	respaldosRepo          *repository.RespaldoRepository
-	formacionRepo          *repository.FormacionRepository
-	experienciaRepo        *repository.ExperienciaRepository
-	inhabilidadesRepo      *repository.InhabilidadesRepository
-	registroCivil          domain.RegistroCivilClient
-	historialLaboral       domain.HistorialLaboralClient
-	catalogoRepo           domain.CatalogoRepository
+	pg                  *postgres.Postgres
+	postulacionRepo     *repository.PostulacionRepository
+	datosPersonalesRepo *repository.DatosPersonalesRepository
+	domicilioRepo       *repository.DomicilioRepository
+	familiaresRepo      *repository.FamiliaresRepository
+	respaldosRepo       *repository.RespaldoRepository
+	formacionRepo       *repository.FormacionRepository
+	experienciaRepo     *repository.ExperienciaRepository
+	inhabilidadesRepo   *repository.InhabilidadesRepository
+	registroCivil       domain.RegistroCivilClient
+	historialLaboral    domain.HistorialLaboralClient
+	catalogoRepo        domain.CatalogoRepository
 }
 
 func NewPostulacionService(
@@ -41,18 +42,18 @@ func NewPostulacionService(
 	catalogoRepo domain.CatalogoRepository,
 ) *PostulacionService {
 	return &PostulacionService{
-		pg:                     pg,
-		postulacionRepo:        postulacionRepo,
-		datosPersonalesRepo:    datosPersonalesRepo,
-		domicilioRepo:          domicilioRepo,
-		familiaresRepo:         familiaresRepo,
-		respaldosRepo:          respaldosRepo,
-		formacionRepo:          formacionRepo,
-		experienciaRepo:        experienciaRepo,
-		inhabilidadesRepo:      inhabilidadesRepo,
-		registroCivil:          registroCivil,
-		historialLaboral:       historialLaboral,
-		catalogoRepo:           catalogoRepo,
+		pg:                  pg,
+		postulacionRepo:     postulacionRepo,
+		datosPersonalesRepo: datosPersonalesRepo,
+		domicilioRepo:       domicilioRepo,
+		familiaresRepo:      familiaresRepo,
+		respaldosRepo:       respaldosRepo,
+		formacionRepo:       formacionRepo,
+		experienciaRepo:     experienciaRepo,
+		inhabilidadesRepo:   inhabilidadesRepo,
+		registroCivil:       registroCivil,
+		historialLaboral:    historialLaboral,
+		catalogoRepo:        catalogoRepo,
 	}
 }
 
@@ -69,7 +70,7 @@ func (s *PostulacionService) GuardarPostulacion(ctx context.Context, postulanteI
 		postulacion, err := s.postulacionRepo.ObtenerPorPostulanteID(ctx, postulanteID)
 		if err != nil {
 			// Si no existe, crear nueva
-			if err.Error() == "no rows in result set" || err.Error() == "error al obtener postulación: no rows in result set" {
+			if errors.Is(err, pgx.ErrNoRows) {
 				codigo, err := s.postulacionRepo.GenerarCodigoUnico(ctx)
 				if err != nil {
 					return fmt.Errorf("error generando código único: %w", err)
@@ -77,9 +78,9 @@ func (s *PostulacionService) GuardarPostulacion(ctx context.Context, postulanteI
 
 				postulacion = &domain.Postulacion{
 					PostulanteID: postulanteID,
-					Codigo:        codigo,
-					Sector:        req.Sector,
-					Estado:        "borrador",
+					Codigo:       codigo,
+					Sector:       req.Sector,
+					Estado:       "borrador",
 				}
 
 				if err := s.postulacionRepo.Crear(ctx, pgxTx, postulacion); err != nil {
@@ -328,7 +329,7 @@ func (s *PostulacionService) ObtenerPostulacion(ctx context.Context, postulanteI
 	postulacion, err := s.postulacionRepo.ObtenerPorPostulanteID(ctx, postulanteID)
 	if err != nil {
 		// Si no existe, crear nueva postulación
-		if err.Error() == "no rows in result set" || err.Error() == "error al obtener postulación: no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			codigo, err := s.postulacionRepo.GenerarCodigoUnico(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("error generando código único: %w", err)
@@ -336,9 +337,9 @@ func (s *PostulacionService) ObtenerPostulacion(ctx context.Context, postulanteI
 
 			postulacion = &domain.Postulacion{
 				PostulanteID: postulanteID,
-				Codigo:        codigo,
-				Sector:        "afiliados",
-				Estado:        "borrador",
+				Codigo:       codigo,
+				Sector:       "afiliados",
+				Estado:       "borrador",
 			}
 
 			if err := s.postulacionRepo.CrearSinTx(ctx, postulacion); err != nil {
@@ -357,58 +358,58 @@ func (s *PostulacionService) ObtenerPostulacion(ctx context.Context, postulanteI
 
 	// Obtener domicilio si existe
 	domicilio, err := s.domicilioRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && err.Error() != "no rows in result set" {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("error obteniendo domicilio: %w", err)
 	}
 
 	// Obtener familiares si existen
 	familiares, err := s.familiaresRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && err.Error() != "no rows in result set" {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("error obteniendo familiares: %w", err)
 	}
 
 	// Obtener respaldo si existe
 	respaldo, err := s.respaldosRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && err.Error() != "no rows in result set" {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("error obteniendo respaldo: %w", err)
 	}
 
 	// Obtener formación si existe
 	formacion, err := s.formacionRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && err.Error() != "no rows in result set" {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("error obteniendo formación: %w", err)
 	}
 
 	// Obtener experiencia si existe
 	experiencia, err := s.experienciaRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && err.Error() != "no rows in result set" {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("error obteniendo experiencia: %w", err)
 	}
 
 	// Obtener inhabilidades si existen
 	inhabilidades, err := s.inhabilidadesRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
-	if err != nil && err.Error() != "no rows in result set" {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return nil, fmt.Errorf("error obteniendo inhabilidades: %w", err)
 	}
 
 	// Construir respuesta completa
 	response := map[string]interface{}{
-		"id":                   postulacion.ID,
-		"postulante_id":        postulacion.PostulanteID,
-		"codigo":               postulacion.Codigo,
-		"sector":               postulacion.Sector,
-		"estado":               postulacion.Estado,
-		"motivo_cierre":        postulacion.MotivoCierre,
-		"created_at":           postulacion.CreatedAt,
-		"updated_at":           postulacion.UpdatedAt,
-		"datos_personales":     registroCivilData,
-		"domicilio":            domicilio,
-		"tiene_familiares":     len(familiares) > 0,
-		"familiares":           familiares,
+		"id":                    postulacion.ID,
+		"postulante_id":         postulacion.PostulanteID,
+		"codigo":                postulacion.Codigo,
+		"sector":                postulacion.Sector,
+		"estado":                postulacion.Estado,
+		"motivo_cierre":         postulacion.MotivoCierre,
+		"created_at":            postulacion.CreatedAt,
+		"updated_at":            postulacion.UpdatedAt,
+		"datos_personales":      registroCivilData,
+		"domicilio":             domicilio,
+		"tiene_familiares":      len(familiares) > 0,
+		"familiares":            familiares,
 		"respaldo_organizacion": respaldo,
-		"formacion":            formacion,
-		"experiencia":          experiencia,
-		"inhabilidades":        inhabilidades,
+		"formacion":             formacion,
+		"experiencia":           experiencia,
+		"inhabilidades":         inhabilidades,
 	}
 
 	return response, nil

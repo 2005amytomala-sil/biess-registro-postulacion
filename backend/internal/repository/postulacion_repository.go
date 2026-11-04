@@ -3,8 +3,10 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -98,7 +100,11 @@ func (r *PostulacionRepository) Actualizar(ctx context.Context, tx pgx.Tx, postu
 }
 
 func (r *PostulacionRepository) GenerarCodigoUnico(ctx context.Context) (string, error) {
-	// Generar código único basado en timestamp y random
-	// Por simplicidad, usaremos un formato POST-YYYYMMDD-XXXXX
-	return "POST-20241103-00001", nil
+	// El UUID evita colisiones entre postulantes concurrentes y cumple el límite VARCHAR(50).
+	id, err := uuid.NewRandom()
+	if err != nil {
+		return "", fmt.Errorf("error generando identificador de postulación: %w", err)
+	}
+
+	return fmt.Sprintf("POST-%s-%s", time.Now().Format("20060102"), id.String()), nil
 }
