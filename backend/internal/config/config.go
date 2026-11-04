@@ -47,7 +47,7 @@ type RedisConfig struct {
 func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{
-			Port: getEnv("SERVER_PORT", "8080"),
+			Port: getEnv("PORT", getEnv("SERVER_PORT", "8080")),
 			Env:  getEnv("ENV", "development"),
 		},
 		Postgres: PostgresConfig{
