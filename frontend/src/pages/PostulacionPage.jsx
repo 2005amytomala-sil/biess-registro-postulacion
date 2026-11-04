@@ -6,6 +6,7 @@ import DomicilioContacto from '../components/DomicilioContacto';
 import FamiliaresIESS from '../components/FamiliaresIESS';
 import SeleccionCargo from '../components/SeleccionCargo';
 import FormacionAcademica from '../components/postulacion/FormacionAcademica';
+import ExperienciaProfesional from '../components/postulacion/ExperienciaProfesional';
 import Card from '../components/Card';
 import Alert from '../components/Alert';
 import Spinner from '../components/Spinner';
@@ -48,6 +49,7 @@ const PostulacionPage = () => {
     },
   });
   const [formacion, setFormacion] = useState([]);
+  const [experiencia, setExperiencia] = useState([]);
   const [postulacionCerrada, setPostulacionCerrada] = useState(false);
 
   const steps = [
@@ -56,6 +58,7 @@ const PostulacionPage = () => {
     { id: 3, title: 'Información Adicional', subtitle: 'Familiares y formación' },
     { id: 4, title: 'Selección del Cargo', subtitle: 'Sector y respaldo' },
     { id: 5, title: 'Formación Académica', subtitle: 'Estudios realizados' },
+    { id: 6, title: 'Experiencia Profesional', subtitle: 'Trayectoria laboral' },
   ];
 
   // Cargar postulación al montar
@@ -107,6 +110,10 @@ const PostulacionPage = () => {
       // Cargar formación si existe
       if (result.data.formacion) {
         setFormacion(result.data.formacion);
+      }
+      // Cargar experiencia si existe
+      if (result.data.experiencia) {
+        setExperiencia(result.data.experiencia);
       }
     } else if (result.message.includes('no existe')) {
       // No existe postulación, crearemos una nueva al guardar
@@ -299,6 +306,32 @@ const PostulacionPage = () => {
     setSaving(false);
   };
 
+  const handleExperienciaChange = (newExperiencia) => {
+    setExperiencia(newExperiencia);
+  };
+
+  const handleGuardarExperiencia = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const datosAGuardar = {
+      sector: postulacion?.sector || 'afiliados',
+      experiencia: experiencia,
+    };
+
+    const result = await guardarPostulacion(datosAGuardar);
+
+    if (result.success) {
+      setSuccessMessage('Experiencia profesional guardada exitosamente');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } else {
+      setError(result.message);
+    }
+
+    setSaving(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -403,6 +436,16 @@ const PostulacionPage = () => {
               datos={formacion}
               onChange={handleFormacionChange}
               onSave={handleGuardarFormacion}
+              saving={saving}
+              error={error}
+            />
+          )}
+
+          {currentStep === 5 && (
+            <ExperienciaProfesional
+              datos={experiencia}
+              onChange={handleExperienciaChange}
+              onSave={handleGuardarExperiencia}
               saving={saving}
               error={error}
             />
