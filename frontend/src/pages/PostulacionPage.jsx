@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Stepper from '../components/Stepper';
 import DatosPersonales from '../components/DatosPersonales';
+import DomicilioContacto from '../components/DomicilioContacto';
 import Card from '../components/Card';
 import Alert from '../components/Alert';
 import Spinner from '../components/Spinner';
@@ -16,6 +17,22 @@ const PostulacionPage = () => {
   const [successMessage, setSuccessMessage] = useState(null);
   const [postulacion, setPostulacion] = useState(null);
   const [datosPersonales, setDatosPersonales] = useState(null);
+  const [domicilio, setDomicilio] = useState({
+    pais_id: 1,
+    provincia_id: null,
+    canton_id: null,
+    provincia_texto: '',
+    ciudad_texto: '',
+    celular: '',
+    correo_1: '',
+    correo_2: '',
+    calle_principal: '',
+    numero: '',
+    calle_secundaria: '',
+    sector: '',
+    referencia: '',
+    telefono_domicilio: '',
+  });
   const [postulacionCerrada, setPostulacionCerrada] = useState(false);
 
   const steps = [
@@ -82,17 +99,49 @@ const PostulacionPage = () => {
     setError(null);
     setSuccessMessage(null);
 
-    // Simular guardado del progreso actual
-    // En la implementación real, aquí se enviarían los datos de la sección actual
-    const datosAGuardar = {
+    // Guardar según el paso actual
+    let datosAGuardar = {
       sector: postulacion?.sector || 'afiliados',
-      // Aquí se agregarían los datos de la sección actual
     };
+
+    if (currentStep === 1) {
+      // Guardar domicilio
+      datosAGuardar = {
+        ...datosAGuardar,
+        domicilio: domicilio,
+      };
+    }
 
     const result = await guardarPostulacion(datosAGuardar);
 
     if (result.success) {
       setSuccessMessage('Progreso guardado exitosamente');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } else {
+      setError(result.message);
+    }
+
+    setSaving(false);
+  };
+
+  const handleDomicilioChange = (newDomicilio) => {
+    setDomicilio(newDomicilio);
+  };
+
+  const handleGuardarDomicilio = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const datosAGuardar = {
+      sector: postulacion?.sector || 'afiliados',
+      domicilio: domicilio,
+    };
+
+    const result = await guardarPostulacion(datosAGuardar);
+
+    if (result.success) {
+      setSuccessMessage('Domicilio guardado exitosamente');
       setTimeout(() => setSuccessMessage(null), 3000);
     } else {
       setError(result.message);
@@ -171,9 +220,13 @@ const PostulacionPage = () => {
           )}
 
           {currentStep === 1 && (
-            <Card title="1.2 Domicilio y Contacto">
-              <Alert type="info" message="Sección en construcción..." />
-            </Card>
+            <DomicilioContacto
+              datos={domicilio}
+              onChange={handleDomicilioChange}
+              onSave={handleGuardarDomicilio}
+              saving={saving}
+              error={error}
+            />
           )}
 
           {currentStep === 2 && (
