@@ -56,17 +56,15 @@ func (s *AuthService) VerificarIdentidad(ctx context.Context, cedula string, fec
 		}
 	}
 
-	// Verificar con el mock del Registro Civil
-	data, err := s.registroCivil.VerificarIdentidad(ctx, cedula, fechaExpedicion, codigoDactilar)
-	if err != nil {
-		log.Printf("[VERIFICAR_IDENTIDAD] Error del Registro Civil para %s: %v", cedula, err)
-		// Incrementar intentos de forma atómica
+	// Verificar con el Registro Civil
+	data, errRC := s.registroCivil.VerificarIdentidad(ctx, cedula, fechaExpedicion, codigoDactilar)
+	if errRC != nil {
+		// Contar el intento fallido de forma atómica
 		intentos, err := s.intentosLimiter.IncrementarIntento(ctx, cedula)
 		if err != nil {
 			return nil, err
 		}
-		log.Printf("[VERIFICAR_IDENTIDAD] Intentos para %s: %d", cedula, intentos)
-		// Si alcanzó el máximo (3), establecer bloqueo
+		// Al tercer fallo consecutivo, bloquear 10 minutos
 		if intentos >= 3 {
 			s.intentosLimiter.EstablecerBloqueo(ctx, cedula, 600)
 			return nil, &domain.AppError{
@@ -76,7 +74,8 @@ func (s *AuthService) VerificarIdentidad(ctx context.Context, cedula string, fec
 				RetryAfter: 600,
 			}
 		}
-		return nil, err
+		// Devolver el error real del Registro Civil (IDENTIDAD_INVALIDA)
+		return nil, errRC
 	}
 
 	// Validar nacionalidad ecuatoriana

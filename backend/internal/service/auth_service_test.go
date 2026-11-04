@@ -106,6 +106,10 @@ func TestVerificarIdentidad_CasoFeliz(t *testing.T) {
 
 	authService := NewAuthService(mockRepo, registroCivil, intentosLimiter, tokenManager, tokenStorage)
 
+	// Configurar expectativas del mock
+	intentosLimiter.On("VerificarBloqueo", mock.Anything, mock.Anything).Return(false, 0, nil)
+	intentosLimiter.On("ReiniciarIntentos", mock.Anything, mock.Anything).Return(nil)
+
 	// Test con datos válidos
 	data, err := authService.VerificarIdentidad(ctx, "0101010101", "01/01/2010", "")
 
@@ -113,6 +117,8 @@ func TestVerificarIdentidad_CasoFeliz(t *testing.T) {
 	assert.NotNil(t, data)
 	assert.Equal(t, "0101010101", data.Cedula)
 	assert.Equal(t, "Ecuatoriana", data.Nacionalidad)
+
+	intentosLimiter.AssertExpectations(t)
 }
 
 func TestVerificarIdentidad_IdentidadInvalida(t *testing.T) {
@@ -125,11 +131,17 @@ func TestVerificarIdentidad_IdentidadInvalida(t *testing.T) {
 
 	authService := NewAuthService(mockRepo, registroCivil, intentosLimiter, tokenManager, tokenStorage)
 
-	// Test con cédula no existente
-	_, err := authService.VerificarIdentidad(ctx, "9999999999", "01/01/2010", "")
+	// Configurar expectativas del mock
+	intentosLimiter.On("VerificarBloqueo", mock.Anything, mock.Anything).Return(false, 0, nil)
+	intentosLimiter.On("IncrementarIntento", mock.Anything, mock.Anything).Return(1, nil)
+
+	// Test con cédula existente pero fecha incorrecta (simula identidad inválida)
+	_, err := authService.VerificarIdentidad(ctx, "0101010101", "01/01/2000", "")
 
 	assert.Error(t, err)
 	assert.Equal(t, domain.ErrIdentidadInvalida, err)
+
+	intentosLimiter.AssertExpectations(t)
 }
 
 func TestVerificarIdentidad_NacionalidadNoEcuatoriana(t *testing.T) {
@@ -142,11 +154,16 @@ func TestVerificarIdentidad_NacionalidadNoEcuatoriana(t *testing.T) {
 
 	authService := NewAuthService(mockRepo, registroCivil, intentosLimiter, tokenManager, tokenStorage)
 
+	// Configurar expectativas del mock
+	intentosLimiter.On("VerificarBloqueo", mock.Anything, mock.Anything).Return(false, 0, nil)
+
 	// Test con nacionalidad no ecuatoriana
 	_, err := authService.VerificarIdentidad(ctx, "0303030303", "20/03/2015", "")
 
 	assert.Error(t, err)
 	assert.Equal(t, domain.ErrIdentidadInvalida, err)
+
+	intentosLimiter.AssertExpectations(t)
 }
 
 func TestLogin_CasoFeliz(t *testing.T) {
@@ -161,18 +178,19 @@ func TestLogin_CasoFeliz(t *testing.T) {
 	// Generar hash real de "password"
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.DefaultCost)
 
-	intentosLimiter.On("VerificarBloqueo", ctx, "0101010101").Return(false, 0, nil)
-	intentosLimiter.On("IncrementarIntento", ctx, "0101010101").Return(1, nil)
-	mockRepo.On("FindByCedula", ctx, "0101010101").Return(&domain.Postulante{
+	intentosLimiter.On("VerificarBloqueo", mock.Anything, mock.Anything).Return(false, 0, nil)
+	mockRepo.On("FindByCedula", mock.Anything, mock.Anything).Return(&domain.Postulante{
 		ID: 1, Cedula: "0101010101", Correo: "test@example.com",
 		PasswordHash: string(hashedPassword),
 	}, nil)
-	intentosLimiter.On("ReiniciarIntentos", ctx, "0101010101").Return(nil)
+	intentosLimiter.On("ReiniciarIntentos", mock.Anything, mock.Anything).Return(nil)
 
 	response, err := authService.Login(ctx, "0101010101", "password")
 	assert.NoError(t, err)
 	assert.NotNil(t, response)
 	assert.NotEmpty(t, response.Token)
+
+	intentosLimiter.AssertExpectations(t)
 }
 
 func TestLogin_CredencialesInvalidas(t *testing.T) {
@@ -185,9 +203,8 @@ func TestLogin_CredencialesInvalidas(t *testing.T) {
 	authService := NewAuthService(mockRepo, mocks.NewRegistroCivilMock(), intentosLimiter, tokenManager, tokenStorage)
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("password"), bcrypt.DefaultCost)
 
-	intentosLimiter.On("VerificarBloqueo", ctx, "0101010101").Return(false, 0, nil)
-	intentosLimiter.On("IncrementarIntento", ctx, "0101010101").Return(1, nil)
-	mockRepo.On("FindByCedula", ctx, "0101010101").Return(&domain.Postulante{
+	intentosLimiter.On("VerificarBloqueo", mock.Anything, mock.AnythingOfType("string")).Return(false, 0, nil)
+	mockRepo.On("FindByCedula", mock.Anything, mock.AnythingOfType("string")).Return(&domain.Postulante{
 		ID: 1, Cedula: "0101010101", Correo: "test@example.com",
 		PasswordHash: string(hashedPassword),
 	}, nil)
@@ -195,6 +212,8 @@ func TestLogin_CredencialesInvalidas(t *testing.T) {
 	_, err := authService.Login(ctx, "0101010101", "wrongpassword")
 	assert.Error(t, err)
 	assert.Equal(t, domain.ErrCredencialesInvalidas, err)
+
+	intentosLimiter.AssertExpectations(t)
 }
 
 func TestLogin_Bloqueado(t *testing.T) {
