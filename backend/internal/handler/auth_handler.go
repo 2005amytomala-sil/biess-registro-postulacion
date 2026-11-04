@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/middleware"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -29,6 +30,17 @@ func (h *AuthHandler) VerificarIdentidad(c *gin.Context) {
 
 	data, err := h.authService.VerificarIdentidad(c.Request.Context(), req.Cedula, req.FechaExpedicion, req.CodigoDactilar)
 	if err != nil {
+		// Si es error de bloqueo, agregar header Retry-After y body con retry_after
+		if appErr, ok := err.(*domain.AppError); ok && appErr.Code == domain.ErrBloqueado.Code {
+			retryAfter := 600 // 10 minutos por defecto
+			c.Header("Retry-After", strconv.Itoa(retryAfter))
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":       appErr.Message,
+				"codigo":      appErr.Code,
+				"retry_after": retryAfter,
+			})
+			return
+		}
 		c.Error(err)
 		return
 	}
@@ -63,10 +75,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	response, err := h.authService.Login(c.Request.Context(), req.Cedula, req.Password)
 	if err != nil {
-		// Si es error de bloqueo, agregar header Retry-After
+		// Si es error de bloqueo, agregar header Retry-After y body con retry_after
 		if appErr, ok := err.(*domain.AppError); ok && appErr.Code == domain.ErrBloqueado.Code {
 			retryAfter := 600 // 10 minutos por defecto
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error":       appErr.Message,
+				"codigo":      appErr.Code,
+				"retry_after": retryAfter,
+			})
+			return
 		}
 		c.Error(err)
 		return
@@ -108,5 +126,25 @@ func (h *AuthHandler) Restablecer(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Contraseña restablecida exitosamente",
+	})
+}
+
+// Me GET /api/v1/auth/me devuelve los datos del usuario autenticado
+func (h *AuthHandler) Me(c *gin.Context) {
+	postulanteID, ok := middleware.PostulanteIDFrom(c)
+	if !ok {
+		c.Error(domain.ErrNoAutorizado)
+		return
+	}
+
+	cedula, ok := middleware.CedulaFrom(c)
+	if !ok {
+		c.Error(domain.ErrNoAutorizado)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"postulante_id": postulanteID,
+		"cedula":        cedula,
 	})
 }

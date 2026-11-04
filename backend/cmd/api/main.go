@@ -49,6 +49,11 @@ func main() {
 	redisClient := redis.New(&cfg.Redis)
 	defer redisClient.Close()
 
+	// Check Redis connection
+	if err := redisClient.CheckConnection(context.Background()); err != nil {
+		log.Fatalf("Error connecting to redis: %v", err)
+	}
+
 	// Initialize dependencies
 	postulanteRepo := repository.NewPostulanteRepository(pg)
 	registroCivil := mocks.NewRegistroCivilMock()
@@ -57,6 +62,7 @@ func main() {
 	tokenManager := jwt.NewTokenManager(cfg.JWT.SecretKey, cfg.JWT.ExpirationHrs)
 	authService := service.NewAuthService(postulanteRepo, registroCivil, intentosLimiter, tokenManager, tokenStorage)
 	authHandler := handler.NewAuthHandler(authService)
+	authMiddleware := middleware.NewAuthMiddleware(tokenManager)
 
 	// Catalog dependencies
 	catalogoRepo := repository.NewCatalogoRepository(pg.Pool())
@@ -64,7 +70,7 @@ func main() {
 	catalogoService := service.NewCatalogoService(catalogoRepo, catalogoCache, log.Default())
 	catalogoHandler := handler.NewCatalogoHandler(catalogoService)
 
-	h := handler.NewHandler(pg, redisClient, authHandler, catalogoHandler)
+	h := handler.NewHandler(pg, redisClient, authHandler, catalogoHandler, authMiddleware)
 
 	// Setup router
 	r := gin.New()

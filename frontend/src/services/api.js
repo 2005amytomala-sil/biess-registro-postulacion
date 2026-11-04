@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -37,7 +37,7 @@ api.interceptors.response.use(
 
     switch (status) {
       case 401:
-        // No autorizado: cerrar sesión
+        // No autorizado: cerrar sesión y redirigir
         localStorage.removeItem('token');
         localStorage.removeItem('usuario');
         window.location.href = '/login';
