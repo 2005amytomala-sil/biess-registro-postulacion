@@ -4,7 +4,7 @@ import ProtectedRoute from './ProtectedRoute';
 import LoginPage from '../pages/LoginPage';
 import RegistroPage from '../pages/RegistroPage';
 import RecuperarPage from '../pages/RecuperarPage';
-import FormularioPage from '../pages/FormularioPage';
+import PostulacionPage from '../pages/PostulacionPage';
 
 const AppRoutes = () => {
   return (
@@ -15,10 +15,10 @@ const AppRoutes = () => {
           <Route path="/registro" element={<RegistroPage />} />
           <Route path="/recuperar" element={<RecuperarPage />} />
           <Route
-            path="/formulario"
+            path="/postulacion"
             element={
               <ProtectedRoute>
-                <FormularioPage />
+                <PostulacionPage />
               </ProtectedRoute>
             }
           />
