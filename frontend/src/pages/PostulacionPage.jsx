@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import Stepper from '../components/Stepper';
 import DatosPersonales from '../components/DatosPersonales';
 import DomicilioContacto from '../components/DomicilioContacto';
+import FamiliaresIESS from '../components/FamiliaresIESS';
+import SeleccionCargo from '../components/SeleccionCargo';
 import Card from '../components/Card';
 import Alert from '../components/Alert';
 import Spinner from '../components/Spinner';
@@ -32,6 +34,17 @@ const PostulacionPage = () => {
     sector: '',
     referencia: '',
     telefono_domicilio: '',
+  });
+  const [familiares, setFamiliares] = useState({
+    tiene_familiares: false,
+    familiares: [],
+  });
+  const [cargo, setCargo] = useState({
+    sector: '',
+    respaldo_organizacion: {
+      tiene_respaldo: false,
+      nombre_organizacion: '',
+    },
   });
   const [postulacionCerrada, setPostulacionCerrada] = useState(false);
 
@@ -101,7 +114,7 @@ const PostulacionPage = () => {
 
     // Guardar según el paso actual
     let datosAGuardar = {
-      sector: postulacion?.sector || 'afiliados',
+      sector: postulacion?.sector || cargo.sector || 'afiliados',
     };
 
     if (currentStep === 1) {
@@ -110,6 +123,19 @@ const PostulacionPage = () => {
         ...datosAGuardar,
         domicilio: domicilio,
       };
+    } else if (currentStep === 2) {
+      // Guardar familiares
+      datosAGuardar = {
+        ...datosAGuardar,
+        tiene_familiares: familiares.tiene_familiares,
+        familiares: familiares.familiares,
+      };
+    } else if (currentStep === 3) {
+      // Guardar cargo
+      datosAGuardar = {
+        sector: cargo.sector,
+        respaldo_organizacion: cargo.respaldo_organizacion,
+      };
     }
 
     const result = await guardarPostulacion(datosAGuardar);
@@ -117,8 +143,16 @@ const PostulacionPage = () => {
     if (result.success) {
       setSuccessMessage('Progreso guardado exitosamente');
       setTimeout(() => setSuccessMessage(null), 3000);
+      // Actualizar el sector en la postulación si se guardó en paso 3
+      if (currentStep === 3) {
+        setPostulacion({ ...postulacion, sector: cargo.sector });
+      }
     } else {
       setError(result.message);
+      // Si el error es de sector no válido, cerrar la postulación
+      if (result.codigo === 'SECTOR_NO_VALIDO') {
+        setPostulacionCerrada(true);
+      }
     }
 
     setSaving(false);
@@ -145,6 +179,65 @@ const PostulacionPage = () => {
       setTimeout(() => setSuccessMessage(null), 3000);
     } else {
       setError(result.message);
+    }
+
+    setSaving(false);
+  };
+
+  const handleFamiliaresChange = (newFamiliares) => {
+    setFamiliares(newFamiliares);
+  };
+
+  const handleGuardarFamiliares = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const datosAGuardar = {
+      sector: postulacion?.sector || 'afiliados',
+      tiene_familiares: familiares.tiene_familiares,
+      familiares: familiares.familiares,
+    };
+
+    const result = await guardarPostulacion(datosAGuardar);
+
+    if (result.success) {
+      setSuccessMessage('Familiares guardados exitosamente');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } else {
+      setError(result.message);
+    }
+
+    setSaving(false);
+  };
+
+  const handleCargoChange = (newCargo) => {
+    setCargo(newCargo);
+  };
+
+  const handleGuardarCargo = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const datosAGuardar = {
+      sector: cargo.sector,
+      respaldo_organizacion: cargo.respaldo_organizacion,
+    };
+
+    const result = await guardarPostulacion(datosAGuardar);
+
+    if (result.success) {
+      setSuccessMessage('Selección de cargo guardada exitosamente');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      // Actualizar el sector en la postulación
+      setPostulacion({ ...postulacion, sector: cargo.sector });
+    } else {
+      setError(result.message);
+      // Si el error es de sector no válido, cerrar la postulación
+      if (result.codigo === 'SECTOR_NO_VALIDO') {
+        setPostulacionCerrada(true);
+      }
     }
 
     setSaving(false);
@@ -230,15 +323,23 @@ const PostulacionPage = () => {
           )}
 
           {currentStep === 2 && (
-            <Card title="1.3 Información Adicional">
-              <Alert type="info" message="Sección en construcción..." />
-            </Card>
+            <FamiliaresIESS
+              datos={familiares}
+              onChange={handleFamiliaresChange}
+              onSave={handleGuardarFamiliares}
+              saving={saving}
+              error={error}
+            />
           )}
 
           {currentStep === 3 && (
-            <Card title="1.4 Selección del Cargo">
-              <Alert type="info" message="Sección en construcción..." />
-            </Card>
+            <SeleccionCargo
+              datos={cargo}
+              onChange={handleCargoChange}
+              onSave={handleGuardarCargo}
+              saving={saving}
+              error={error}
+            />
           )}
         </div>
 

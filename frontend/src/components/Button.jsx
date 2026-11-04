@@ -1,5 +1,11 @@
-const Button = ({ children, type = 'button', variant = 'primary', loading = false, disabled = false, className = '', onClick }) => {
-  const baseClasses = 'px-4 py-2 rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+const Button = ({ children, type = 'button', variant = 'primary', loading = false, disabled = false, size = 'md', className = '', onClick }) => {
+  const baseClasses = 'rounded-md font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
+  
+  const sizes = {
+    sm: 'px-3 py-1.5 text-sm',
+    md: 'px-4 py-2',
+    lg: 'px-6 py-3 text-lg',
+  };
 
   const variants = {
     primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
@@ -8,7 +14,7 @@ const Button = ({ children, type = 'button', variant = 'primary', loading = fals
     outline: 'border-2 border-blue-600 text-blue-600 hover:bg-blue-50 focus:ring-blue-500',
   };
 
-  const classes = `${baseClasses} ${variants[variant]} ${className}`;
+  const classes = `${baseClasses} ${sizes[size]} ${variants[variant]} ${className}`;
 
   return (
     <button
