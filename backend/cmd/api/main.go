@@ -57,10 +57,11 @@ func main() {
 	// Initialize dependencies
 	postulanteRepo := repository.NewPostulanteRepository(pg)
 	registroCivil := mocks.NewRegistroCivilMock()
-	intentosLimiter := redis.NewIntentosLimiter(redisClient.Client())
+	registroLimiter := redis.NewRegistroIntentosLimiter(redisClient.Client())
+	loginLimiter := redis.NewLoginIntentosLimiter(redisClient.Client())
 	tokenStorage := redis.NewTokenStorage(redisClient.Client())
 	tokenManager := jwt.NewTokenManager(cfg.JWT.SecretKey, cfg.JWT.ExpirationHrs)
-	authService := service.NewAuthService(postulanteRepo, registroCivil, intentosLimiter, tokenManager, tokenStorage)
+	authService := service.NewAuthService(postulanteRepo, registroCivil, registroLimiter, loginLimiter, tokenManager, tokenStorage)
 	authHandler := handler.NewAuthHandler(authService)
 	authMiddleware := middleware.NewAuthMiddleware(tokenManager)
 

@@ -9,12 +9,17 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	bloqueoTTLSeconds = 600 // 10 minutos
+)
+
 type AuthService struct {
-	postulanteRepo  domain.PostulanteRepository
-	registroCivil   domain.RegistroCivilClient
-	intentosLimiter domain.IntentosLimiter
-	tokenManager    domain.TokenManager
-	tokenStorage    TokenStorage
+	postulanteRepo      domain.PostulanteRepository
+	registroCivil       domain.RegistroCivilClient
+	registroLimiter     domain.IntentosLimiter
+	loginLimiter        domain.IntentosLimiter
+	tokenManager        domain.TokenManager
+	tokenStorage        TokenStorage
 }
 
 // TokenStorage interface para inyección de dependencias
@@ -27,14 +32,16 @@ type TokenStorage interface {
 func NewAuthService(
 	postulanteRepo domain.PostulanteRepository,
 	registroCivil domain.RegistroCivilClient,
-	intentosLimiter domain.IntentosLimiter,
+	registroLimiter domain.IntentosLimiter,
+	loginLimiter domain.IntentosLimiter,
 	tokenManager domain.TokenManager,
 	tokenStorage TokenStorage,
 ) *AuthService {
 	return &AuthService{
 		postulanteRepo:  postulanteRepo,
 		registroCivil:   registroCivil,
-		intentosLimiter: intentosLimiter,
+		registroLimiter: registroLimiter,
+		loginLimiter:    loginLimiter,
 		tokenManager:    tokenManager,
 		tokenStorage:    tokenStorage,
 	}
@@ -42,15 +49,15 @@ func NewAuthService(
 
 // VerificarIdentidad verifica la identidad del postulante con el Registro Civil
 func (s *AuthService) VerificarIdentidad(ctx context.Context, cedula string, fechaExpedicion string, codigoDactilar string) (*domain.RegistroCivilData, error) {
-	// Verificar bloqueo primero
-	isBlocked, retryAfter, err := s.intentosLimiter.VerificarBloqueo(ctx, cedula)
+	// Verificar bloqueo primero (usar limiter de registro)
+	isBlocked, retryAfter, err := s.registroLimiter.VerificarBloqueo(ctx, cedula)
 	if err != nil {
 		return nil, err
 	}
 	if isBlocked {
 		return nil, &domain.AppError{
 			Code:       domain.ErrBloqueado.Code,
-			Message:    fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
+			Message:    domain.ErrBloqueado.Message,
 			Err:        domain.ErrBloqueado,
 			RetryAfter: retryAfter,
 		}
@@ -59,19 +66,21 @@ func (s *AuthService) VerificarIdentidad(ctx context.Context, cedula string, fec
 	// Verificar con el Registro Civil
 	data, errRC := s.registroCivil.VerificarIdentidad(ctx, cedula, fechaExpedicion, codigoDactilar)
 	if errRC != nil {
-		// Contar el intento fallido de forma atómica
-		intentos, err := s.intentosLimiter.IncrementarIntento(ctx, cedula)
+		// Contar el intento fallido de forma atómica (usar limiter de registro)
+		intentos, err := s.registroLimiter.IncrementarIntento(ctx, cedula)
 		if err != nil {
 			return nil, err
 		}
 		// Al tercer fallo consecutivo, bloquear 10 minutos
 		if intentos >= 3 {
-			s.intentosLimiter.EstablecerBloqueo(ctx, cedula, 600)
+			if err := s.registroLimiter.EstablecerBloqueo(ctx, cedula, bloqueoTTLSeconds); err != nil {
+				return nil, err
+			}
 			return nil, &domain.AppError{
 				Code:       domain.ErrBloqueado.Code,
 				Message:    domain.ErrBloqueado.Message,
 				Err:        domain.ErrBloqueado,
-				RetryAfter: 600,
+				RetryAfter: bloqueoTTLSeconds,
 			}
 		}
 		// Devolver el error real del Registro Civil (IDENTIDAD_INVALIDA)
@@ -84,16 +93,27 @@ func (s *AuthService) VerificarIdentidad(ctx context.Context, cedula string, fec
 	}
 
 	// Verificación exitosa: reiniciar contador de intentos
-	s.intentosLimiter.ReiniciarIntentos(ctx, cedula)
+	s.registroLimiter.ReiniciarIntentos(ctx, cedula)
 
 	return data, nil
 }
 
 // Registrar registra un nuevo postulante
-func (s *AuthService) Registrar(ctx context.Context, cedula string, correo string, password string, confirmPassword string) (*domain.AuthResponse, error) {
+func (s *AuthService) Registrar(ctx context.Context, cedula string, fechaExpedicion string, codigoDactilar string, correo string, password string, confirmPassword string) (*domain.AuthResponse, error) {
 	// Validar que las contraseñas coincidan
 	if password != confirmPassword {
 		return nil, domain.ErrPasswordMismatch
+	}
+
+	// Verificar que al menos uno de los campos de identidad esté presente
+	if fechaExpedicion == "" && codigoDactilar == "" {
+		return nil, domain.ErrIdentidadInvalida
+	}
+
+	// Verificar identidad con el Registro Civil (esto maneja los intentos y bloqueo)
+	_, err := s.VerificarIdentidad(ctx, cedula, fechaExpedicion, codigoDactilar)
+	if err != nil {
+		return nil, err
 	}
 
 	// Verificar si ya existe por cédula
@@ -145,15 +165,15 @@ func (s *AuthService) Registrar(ctx context.Context, cedula string, correo strin
 
 // Login autentica a un postulante
 func (s *AuthService) Login(ctx context.Context, cedula string, password string) (*domain.AuthResponse, error) {
-	// Verificar bloqueo primero (si está bloqueado, no verificar contraseña)
-	isBlocked, retryAfter, err := s.intentosLimiter.VerificarBloqueo(ctx, cedula)
+	// Verificar bloqueo primero (usar limiter de login)
+	isBlocked, retryAfter, err := s.loginLimiter.VerificarBloqueo(ctx, cedula)
 	if err != nil {
 		return nil, err
 	}
 	if isBlocked {
 		return nil, &domain.AppError{
 			Code:       domain.ErrBloqueado.Code,
-			Message:    fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
+			Message:    domain.ErrCredencialesInvalidas.Message,
 			Err:        domain.ErrBloqueado,
 			RetryAfter: retryAfter,
 		}
@@ -162,18 +182,21 @@ func (s *AuthService) Login(ctx context.Context, cedula string, password string)
 	// Buscar postulante por cédula
 	postulante, err := s.postulanteRepo.FindByCedula(ctx, cedula)
 	if err != nil {
-		// Incrementar intentos de forma atómica
-		intentos, err := s.intentosLimiter.IncrementarIntento(ctx, cedula)
+		// Incrementar intentos de forma atómica (usar limiter de login)
+		intentos, err := s.loginLimiter.IncrementarIntento(ctx, cedula)
 		if err != nil {
 			return nil, err
 		}
 		// Si alcanzó el máximo (3), establecer bloqueo
 		if intentos >= 3 {
-			s.intentosLimiter.EstablecerBloqueo(ctx, cedula, 600)
+			if err := s.loginLimiter.EstablecerBloqueo(ctx, cedula, bloqueoTTLSeconds); err != nil {
+				return nil, err
+			}
 			return nil, &domain.AppError{
-				Code:    domain.ErrBloqueado.Code,
-				Message: domain.ErrBloqueado.Message,
-				Err:     domain.ErrBloqueado,
+				Code:       domain.ErrBloqueado.Code,
+				Message:    domain.ErrCredencialesInvalidas.Message,
+				Err:        domain.ErrBloqueado,
+				RetryAfter: bloqueoTTLSeconds,
 			}
 		}
 		return nil, domain.ErrCredencialesInvalidas
@@ -181,25 +204,28 @@ func (s *AuthService) Login(ctx context.Context, cedula string, password string)
 
 	// Verificar contraseña
 	if err := bcrypt.CompareHashAndPassword([]byte(postulante.PasswordHash), []byte(password)); err != nil {
-		// Incrementar intentos de forma atómica
-		intentos, err := s.intentosLimiter.IncrementarIntento(ctx, cedula)
+		// Incrementar intentos de forma atómica (usar limiter de login)
+		intentos, err := s.loginLimiter.IncrementarIntento(ctx, cedula)
 		if err != nil {
 			return nil, err
 		}
 		// Si alcanzó el máximo (3), establecer bloqueo
 		if intentos >= 3 {
-			s.intentosLimiter.EstablecerBloqueo(ctx, cedula, 600)
+			if err := s.loginLimiter.EstablecerBloqueo(ctx, cedula, bloqueoTTLSeconds); err != nil {
+				return nil, err
+			}
 			return nil, &domain.AppError{
-				Code:    domain.ErrBloqueado.Code,
-				Message: domain.ErrBloqueado.Message,
-				Err:     domain.ErrBloqueado,
+				Code:       domain.ErrBloqueado.Code,
+				Message:    domain.ErrCredencialesInvalidas.Message,
+				Err:        domain.ErrBloqueado,
+				RetryAfter: bloqueoTTLSeconds,
 			}
 		}
 		return nil, domain.ErrCredencialesInvalidas
 	}
 
 	// Login exitoso: reiniciar contador de intentos
-	s.intentosLimiter.ReiniciarIntentos(ctx, cedula)
+	s.loginLimiter.ReiniciarIntentos(ctx, cedula)
 
 	// Generar token
 	token, err := s.tokenManager.GenerarToken(postulante.ID, postulante.Cedula)

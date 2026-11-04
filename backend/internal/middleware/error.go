@@ -29,10 +29,13 @@ func ErrorHandler() gin.HandlerFunc {
 				if status >= 500 {
 					log.Printf("[ERROR INTERNO] %s %s: %s | %v", c.Request.Method, c.Request.URL.Path, appErr.Code, appErr.Err)
 				}
-				c.JSON(status, ErrorResponse{
-					Error:  appErr.Message,
-					Codigo: appErr.Code,
-				})
+				body := gin.H{"error": appErr.Message, "codigo": appErr.Code}
+				for k, v := range detallesDe(appErr) {
+					if _, reservado := body[k]; !reservado {
+						body[k] = v
+					}
+				}
+				c.JSON(status, body)
 				return
 			}
 
@@ -44,6 +47,17 @@ func ErrorHandler() gin.HandlerFunc {
 			})
 		}
 	}
+}
+
+// detallesDe busca el primer AppError de la cadena que tenga detalles
+func detallesDe(err error) map[string]any {
+	for err != nil {
+		if appErr, ok := err.(*domain.AppError); ok && len(appErr.Detalles) > 0 {
+			return appErr.Detalles
+		}
+		err = errors.Unwrap(err)
+	}
+	return nil
 }
 
 func httpStatusFromAppError(err *domain.AppError) int {
@@ -58,8 +72,18 @@ func httpStatusFromAppError(err *domain.AppError) int {
 		return http.StatusBadRequest
 	case domain.ErrConflict.Code:
 		return http.StatusConflict
-	case domain.ErrValidation.Code:
-		return http.StatusBadRequest
+	case domain.ErrValidation.Code,
+		domain.ErrFechaFormatoInvalido.Code,
+		domain.ErrNacionalidadNoPermitida.Code,
+		domain.ErrSectorNoValido.Code,
+		domain.ErrCantonNoPerteneceAProvincia.Code,
+		domain.ErrListaFamiliaresVacia.Code,
+		domain.ErrFechaFinAnteriorInicio.Code,
+		domain.ErrDescripcionExcedeLongitud.Code,
+		domain.ErrPostulacionIncompleta.Code:
+		return http.StatusUnprocessableEntity
+	case domain.ErrPostulacionCerrada.Code, domain.ErrPostulacionEnviada.Code:
+		return http.StatusConflict
 	case domain.ErrTooManyRequests.Code:
 		return http.StatusTooManyRequests
 	case "YA_REGISTRADO":

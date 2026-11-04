@@ -1,23 +1,42 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/middleware"
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/service"
 	"github.com/gin-gonic/gin"
 )
 
 type AuthHandler struct {
-	authService *service.AuthService
+	authService domain.AuthService
 }
 
-func NewAuthHandler(authService *service.AuthService) *AuthHandler {
+func NewAuthHandler(authService domain.AuthService) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
 	}
+}
+
+// responderErrorAuth agrega header Retry-After y body con retry_after en bloqueos; el resto va al middleware
+func responderErrorAuth(c *gin.Context, err error) {
+	var appErr *domain.AppError
+	if errors.As(err, &appErr) && appErr.Code == domain.ErrBloqueado.Code {
+		retryAfter := appErr.RetryAfter
+		if retryAfter <= 0 {
+			retryAfter = 600 // fallback por seguridad
+		}
+		c.Header("Retry-After", strconv.Itoa(retryAfter))
+		c.JSON(http.StatusTooManyRequests, gin.H{
+			"error":       appErr.Message,
+			"codigo":      appErr.Code,
+			"retry_after": retryAfter,
+		})
+		return
+	}
+	c.Error(err)
 }
 
 // VerificarIdentidad POST /api/v1/auth/verificar-identidad
@@ -30,21 +49,7 @@ func (h *AuthHandler) VerificarIdentidad(c *gin.Context) {
 
 	data, err := h.authService.VerificarIdentidad(c.Request.Context(), req.Cedula, req.FechaExpedicion, req.CodigoDactilar)
 	if err != nil {
-		// Si es error de bloqueo, agregar header Retry-After y body con retry_after
-		if appErr, ok := err.(*domain.AppError); ok && appErr.Code == domain.ErrBloqueado.Code {
-			retryAfter := appErr.RetryAfter
-			if retryAfter == 0 {
-				retryAfter = 600 // fallback por seguridad
-			}
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":       appErr.Message,
-				"codigo":      appErr.Code,
-				"retry_after": retryAfter,
-			})
-			return
-		}
-		c.Error(err)
+		responderErrorAuth(c, err)
 		return
 	}
 
@@ -59,9 +64,9 @@ func (h *AuthHandler) Registrar(c *gin.Context) {
 		return
 	}
 
-	response, err := h.authService.Registrar(c.Request.Context(), req.Cedula, req.Correo, req.Password, req.ConfirmPassword)
+	response, err := h.authService.Registrar(c.Request.Context(), req.Cedula, req.FechaExpedicion, req.CodigoDactilar, req.Correo, req.Password, req.ConfirmPassword)
 	if err != nil {
-		c.Error(err)
+		responderErrorAuth(c, err)
 		return
 	}
 
@@ -78,21 +83,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	response, err := h.authService.Login(c.Request.Context(), req.Cedula, req.Password)
 	if err != nil {
-		// Si es error de bloqueo, agregar header Retry-After y body con retry_after
-		if appErr, ok := err.(*domain.AppError); ok && appErr.Code == domain.ErrBloqueado.Code {
-			retryAfter := appErr.RetryAfter
-			if retryAfter == 0 {
-				retryAfter = 600 // fallback por seguridad
-			}
-			c.Header("Retry-After", strconv.Itoa(retryAfter))
-			c.JSON(http.StatusTooManyRequests, gin.H{
-				"error":       appErr.Message,
-				"codigo":      appErr.Code,
-				"retry_after": retryAfter,
-			})
-			return
-		}
-		c.Error(err)
+		responderErrorAuth(c, err)
 		return
 	}
 
@@ -108,7 +99,7 @@ func (h *AuthHandler) Recuperar(c *gin.Context) {
 	}
 
 	if err := h.authService.Recuperar(c.Request.Context(), req.Cedula, req.FechaExpedicion, req.CodigoDactilar); err != nil {
-		c.Error(err)
+		responderErrorAuth(c, err)
 		return
 	}
 

@@ -8,7 +8,8 @@ type AppError struct {
 	Code       string
 	Message    string
 	Err        error
-	RetryAfter int // Tiempo restante en segundos para bloqueos (opcional)
+	RetryAfter int            // Tiempo restante en segundos para bloqueos (opcional)
+	Detalles   map[string]any // Campos extra que se agregan al body de la respuesta (opcional)
 }
 
 func (e *AppError) Error() string {
@@ -20,6 +21,16 @@ func (e *AppError) Error() string {
 
 func (e *AppError) Unwrap() error {
 	return e.Err
+}
+
+// ConMensaje devuelve una copia del error con otro mensaje (conserva el código para el status HTTP)
+func (e *AppError) ConMensaje(message string) *AppError {
+	return &AppError{Code: e.Code, Message: message, Err: e}
+}
+
+// ConDetalles devuelve una copia del error con campos extra en la respuesta
+func (e *AppError) ConDetalles(message string, detalles map[string]any) *AppError {
+	return &AppError{Code: e.Code, Message: message, Err: e, Detalles: detalles}
 }
 
 func NewAppError(code, message string, err error) *AppError {
@@ -56,4 +67,7 @@ var (
 	ErrListaFamiliaresVacia         = NewAppError("LISTA_FAMILIARES_VACIA", "Debe agregar al menos un familiar", nil)
 	ErrFechaFinAnteriorInicio       = NewAppError("FECHA_FIN_ANTERIOR_INICIO", "La fecha de fin no puede ser anterior a la fecha de inicio", nil)
 	ErrDescripcionExcedeLongitud    = NewAppError("DESCRIPCION_EXCEDE_LONGITUD", "La descripción no puede exceder 1000 caracteres", nil)
+	ErrPostulacionCerrada           = NewAppError("POSTULACION_CERRADA", "La postulación está cerrada", nil)
+	ErrPostulacionEnviada           = NewAppError("POSTULACION_ENVIADA", "La postulación ya fue enviada y no puede modificarse", nil)
+	ErrPostulacionIncompleta        = NewAppError("POSTULACION_INCOMPLETA", "La postulación está incompleta", nil)
 )

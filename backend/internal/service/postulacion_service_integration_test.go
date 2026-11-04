@@ -7,14 +7,12 @@ import (
 	"context"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/config"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/mocks"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/repository"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -104,18 +102,18 @@ func TestGuardarPostulacion_RollbackForzado(t *testing.T) {
 	// Por ejemplo, intentaremos insertar en una tabla con constraint violado
 
 	// Request válido
-	fechaInicio, _ := time.Parse("2006-01-02", "2020-01-01")
+	fechaInicio, _ := domain.ParseDate("2020-01-01")
 	req := &domain.GuardarPostulacionRequest{
 		Sector: "afiliados",
-		Domicilio: domain.DomicilioContacto{
+		Domicilio: &domain.DomicilioContacto{
 			PaisID:      1,
 			ProvinciaID: intPtr(1),
 			CantonID:    intPtr(1),
 			Celular:     "0991234567",
 			Correo1:     "test@example.com",
 		},
-		TieneFamiliares: false,
-		RespaldoOrganizacion: domain.RespaldoOrganizacion{
+		TieneFamiliares: boolPtr(false),
+		RespaldoOrganizacion: &domain.RespaldoOrganizacion{
 			TieneRespaldo: false,
 		},
 		Formacion: []domain.FormacionAcademica{},
@@ -232,18 +230,18 @@ func TestGuardarPostulacion_Integration_CasoFeliz(t *testing.T) {
 	)
 
 	// Request
-	fechaInicio, _ := time.Parse("2006-01-02", "2020-01-01")
+	fechaInicio, _ := domain.ParseDate("2020-01-01")
 	req := &domain.GuardarPostulacionRequest{
 		Sector: "afiliados",
-		Domicilio: domain.DomicilioContacto{
+		Domicilio: &domain.DomicilioContacto{
 			PaisID:      1,
 			ProvinciaID: intPtr(1),
 			CantonID:    intPtr(1),
 			Celular:     "0991234567",
 			Correo1:     "test@example.com",
 		},
-		TieneFamiliares: false,
-		RespaldoOrganizacion: domain.RespaldoOrganizacion{
+		TieneFamiliares: boolPtr(false),
+		RespaldoOrganizacion: &domain.RespaldoOrganizacion{
 			TieneRespaldo: false,
 		},
 		Formacion: []domain.FormacionAcademica{},
@@ -274,8 +272,67 @@ func TestGuardarPostulacion_Integration_CasoFeliz(t *testing.T) {
 	assert.Equal(t, "afiliados", postulacion.Sector)
 	assert.Equal(t, "borrador", postulacion.Estado)
 
+	// Lectura: las fechas DATE (incluido NULL) se leen en domain.Date
+	experienciaLeida, err := experienciaRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
+	require.NoError(t, err)
+	require.Len(t, experienciaLeida, 1)
+	assert.Equal(t, "2020-01-01", experienciaLeida[0].FechaInicio.String())
+	assert.False(t, experienciaLeida[0].FechaFin.Valid)
+
 	// Limpiar
 	pg.Pool().Exec(ctx, "DELETE FROM postulaciones WHERE id = $1", postulacion.ID)
+}
+
+// Test de integración: el cierre por nacionalidad debe quedar persistido aunque se devuelva error
+func TestGuardarPostulacion_Integration_CierrePorNacionalidadPersiste(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	ctx := context.Background()
+	cfg := &config.PostgresConfig{
+		Host:     getEnv("TEST_DB_HOST", "localhost"),
+		Port:     getEnv("TEST_DB_PORT", "5432"),
+		User:     getEnv("TEST_DB_USER", "postgres"),
+		Password: getEnv("TEST_DB_PASSWORD", "postgres"),
+		DBName:   getEnv("TEST_DB_NAME", "biess_test"),
+	}
+	pg, err := postgres.New(ctx, cfg)
+	require.NoError(t, err)
+	defer pg.Close()
+
+	postulanteRepo := repository.NewPostulanteRepository(pg)
+	testPostulante := &domain.Postulante{Cedula: "0303030303", Correo: "cierre-test@example.com", PasswordHash: "$2a$10$test"}
+	require.NoError(t, postulanteRepo.Create(ctx, testPostulante))
+	defer pg.Pool().Exec(ctx, "DELETE FROM postulantes WHERE id = $1", testPostulante.ID)
+
+	postulacionRepo := repository.NewPostulacionRepository(pg.Pool())
+	service := NewPostulacionService(
+		pg,
+		postulacionRepo,
+		repository.NewDatosPersonalesRepository(pg.Pool()),
+		repository.NewDomicilioRepository(pg.Pool()),
+		repository.NewFamiliaresRepository(pg.Pool()),
+		repository.NewRespaldoRepository(pg.Pool()),
+		repository.NewFormacionRepository(pg.Pool()),
+		repository.NewExperienciaRepository(pg.Pool()),
+		repository.NewInhabilidadesRepository(pg.Pool()),
+		mocks.NewRegistroCivilMock(),
+		mocks.NewHistorialLaboralMock(),
+		repository.NewCatalogoRepository(pg.Pool()),
+	)
+
+	err = service.GuardarPostulacion(ctx, testPostulante.ID, "0303030303", &domain.GuardarPostulacionRequest{Sector: "afiliados"})
+	require.ErrorIs(t, err, domain.ErrNacionalidadNoPermitida)
+
+	postulacion, err := postulacionRepo.ObtenerPorPostulanteID(ctx, testPostulante.ID)
+	require.NoError(t, err)
+	assert.Equal(t, domain.EstadoCerrada, postulacion.Estado)
+	assert.NotEmpty(t, postulacion.MotivoCierre)
+
+	// Un segundo intento sigue rechazado y no reabre la postulación
+	_, err = service.EnviarPostulacion(ctx, testPostulante.ID, "0303030303", true)
+	require.Error(t, err)
 }
 
 func getEnv(key, defaultValue string) string {

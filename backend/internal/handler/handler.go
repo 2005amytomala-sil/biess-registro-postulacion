@@ -2,8 +2,6 @@ package handler
 
 import (
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/middleware"
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/redis"
 	"github.com/gin-gonic/gin"
 )
 
@@ -15,7 +13,7 @@ type Handler struct {
 	authMiddleware   *middleware.AuthMiddleware
 }
 
-func NewHandler(pg *postgres.Postgres, rdb *redis.Redis, auth *AuthHandler, catalogo *CatalogoHandler, postulacion *PostulacionHandler, authMiddleware *middleware.AuthMiddleware) *Handler {
+func NewHandler(pg Pinger, rdb Pinger, auth *AuthHandler, catalogo *CatalogoHandler, postulacion *PostulacionHandler, authMiddleware *middleware.AuthMiddleware) *Handler {
 	return &Handler{
 		health:         NewHealthHandler(pg, rdb),
 		auth:           auth,

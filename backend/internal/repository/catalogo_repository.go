@@ -2,10 +2,12 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -90,6 +92,20 @@ func (r *CatalogoRepository) ObtenerCantonesPorProvincia(ctx context.Context, pr
 	}
 
 	return cantones, nil
+}
+
+func (r *CatalogoRepository) ObtenerPaisPorID(ctx context.Context, paisID int) (*domain.Pais, error) {
+	query := `SELECT id, nombre, created_at FROM paises WHERE id = $1`
+
+	var pais domain.Pais
+	err := r.pool.QueryRow(ctx, query, paisID).Scan(&pais.ID, &pais.Nombre, &pais.CreatedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener país: %w", err)
+	}
+	return &pais, nil
 }
 
 func (r *CatalogoRepository) ExisteProvincia(ctx context.Context, provinciaID int) (bool, error) {

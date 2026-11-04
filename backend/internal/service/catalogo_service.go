@@ -30,7 +30,6 @@ func (s *CatalogoService) ObtenerPaises(ctx context.Context) ([]domain.Pais, err
 	// Intentar obtener del caché
 	paises, err := s.cache.ObtenerPaises(ctx)
 	if err == nil {
-		s.logger.Println("cache hit: paises")
 		return paises, nil
 	}
 
@@ -57,7 +56,6 @@ func (s *CatalogoService) ObtenerProvincias(ctx context.Context) ([]domain.Provi
 	// Intentar obtener del caché
 	provincias, err := s.cache.ObtenerProvincias(ctx)
 	if err == nil {
-		s.logger.Println("cache hit: provincias")
 		return provincias, nil
 	}
 
@@ -93,7 +91,6 @@ func (s *CatalogoService) ObtenerCantonesPorProvincia(ctx context.Context, provi
 	// Intentar obtener del caché
 	cantones, err := s.cache.ObtenerCantonesPorProvincia(ctx, provinciaID)
 	if err == nil {
-		s.logger.Printf("cache hit: cantones provincia %d", provinciaID)
 		return cantones, nil
 	}
 

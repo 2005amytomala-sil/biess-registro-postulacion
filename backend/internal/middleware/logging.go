@@ -18,12 +18,9 @@ func Logging() gin.HandlerFunc {
 		c.Set("request_id", requestID)
 		c.Writer.Header().Set("X-Request-ID", requestID)
 
-		// Log request
 		start := time.Now()
 		path := c.Request.URL.Path
 		method := c.Request.Method
-
-		log.Printf("[%s] %s %s - RequestID: %s", method, path, c.Request.RemoteAddr, requestID)
 
 		// Process request
 		c.Next()

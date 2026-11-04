@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
-	"github.com/jackc/pgx/v5"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -17,16 +17,16 @@ func NewFormacionRepository(pool *pgxpool.Pool) *FormacionRepository {
 	return &FormacionRepository{pool: pool}
 }
 
-func (r *FormacionRepository) EliminarPorPostulacionID(ctx context.Context, tx pgx.Tx, postulacionID int) error {
+func (r *FormacionRepository) EliminarPorPostulacionID(ctx context.Context, postulacionID int) error {
 	query := `DELETE FROM formacion_academica WHERE postulacion_id = $1`
-	_, err := tx.Exec(ctx, query, postulacionID)
+	_, err := postgres.Conn(ctx, r.pool).Exec(ctx, query, postulacionID)
 	if err != nil {
 		return fmt.Errorf("error al eliminar formación: %w", err)
 	}
 	return nil
 }
 
-func (r *FormacionRepository) Guardar(ctx context.Context, tx pgx.Tx, formacion []domain.FormacionAcademica) error {
+func (r *FormacionRepository) Guardar(ctx context.Context, formacion []domain.FormacionAcademica) error {
 	if len(formacion) == 0 {
 		return nil
 	}
@@ -35,7 +35,7 @@ func (r *FormacionRepository) Guardar(ctx context.Context, tx pgx.Tx, formacion 
 	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`
 
 	for _, f := range formacion {
-		_, err := tx.Exec(ctx, query,
+		_, err := postgres.Conn(ctx, r.pool).Exec(ctx, query,
 			f.PostulacionID,
 			f.Nivel,
 			f.Institucion,
@@ -57,7 +57,7 @@ func (r *FormacionRepository) ObtenerPorPostulacionID(ctx context.Context, postu
 	query := `SELECT id, postulacion_id, nivel, institucion, tipo, titulo, area_estudios, registro_senescyt, fecha_registro_senescyt, created_at
 	          FROM formacion_academica WHERE postulacion_id = $1`
 
-	rows, err := r.pool.Query(ctx, query, postulacionID)
+	rows, err := postgres.Conn(ctx, r.pool).Query(ctx, query, postulacionID)
 	if err != nil {
 		return nil, fmt.Errorf("error al obtener formación: %w", err)
 	}

@@ -33,6 +33,8 @@ type CatalogoRepository interface {
 	ObtenerProvincias(ctx context.Context) ([]Provincia, error)
 	ObtenerCantonesPorProvincia(ctx context.Context, provinciaID int) ([]Canton, error)
 	ExisteProvincia(ctx context.Context, provinciaID int) (bool, error)
+	// ObtenerPaisPorID devuelve (nil, nil) si el país no existe
+	ObtenerPaisPorID(ctx context.Context, paisID int) (*Pais, error)
 }
 
 type CatalogoCache interface {

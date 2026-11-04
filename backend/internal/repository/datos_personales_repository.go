@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
+	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/platform/postgres"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -17,7 +19,7 @@ func NewDatosPersonalesRepository(pool *pgxpool.Pool) *DatosPersonalesRepository
 	return &DatosPersonalesRepository{pool: pool}
 }
 
-func (r *DatosPersonalesRepository) Guardar(ctx context.Context, tx pgx.Tx, datos *domain.DatosPersonales) error {
+func (r *DatosPersonalesRepository) Guardar(ctx context.Context, datos *domain.DatosPersonales) error {
 	query := `INSERT INTO datos_personales 
 	          (postulacion_id, nombres, apellidos, cedula, genero, fecha_nacimiento, nacionalidad, estado_civil, pareja_nombres, pareja_cedula)
 	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
@@ -32,7 +34,7 @@ func (r *DatosPersonalesRepository) Guardar(ctx context.Context, tx pgx.Tx, dato
 	          pareja_nombres = EXCLUDED.pareja_nombres,
 	          pareja_cedula = EXCLUDED.pareja_cedula`
 
-	_, err := tx.Exec(ctx, query,
+	_, err := postgres.Conn(ctx, r.pool).Exec(ctx, query,
 		datos.PostulacionID,
 		datos.Nombres,
 		datos.Apellidos,
@@ -57,7 +59,7 @@ func (r *DatosPersonalesRepository) ObtenerPorPostulacionID(ctx context.Context,
 	          FROM datos_personales WHERE postulacion_id = $1`
 
 	var datos domain.DatosPersonales
-	err := r.pool.QueryRow(ctx, query, postulacionID).Scan(
+	err := postgres.Conn(ctx, r.pool).QueryRow(ctx, query, postulacionID).Scan(
 		&datos.PostulacionID,
 		&datos.Nombres,
 		&datos.Apellidos,
@@ -71,6 +73,9 @@ func (r *DatosPersonalesRepository) ObtenerPorPostulacionID(ctx context.Context,
 		&datos.CreatedAt,
 	)
 
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
 	if err != nil {
 		return nil, fmt.Errorf("error al obtener datos personales: %w", err)
 	}

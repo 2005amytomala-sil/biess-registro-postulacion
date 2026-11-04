@@ -5,43 +5,62 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/2005amytomala-sil/biess-registro-postulacion/backend/internal/domain"
 	"github.com/redis/go-redis/v9"
 )
 
 const (
-	intentosMaximos        = 3
-	bloqueoTTLSeconds      = 600 // 10 minutos
-	intentosTTLSeconds     = 900 // 15 minutos (tiempo de vida del contador)
-	intentosKeyPrefix      = "auth:intentos:"
-	bloqueoKeyPrefix       = "auth:bloqueo:"
+	intentosTTLSeconds = 900 // 15 minutos (tiempo de vida del contador)
+
+	// Prefijos para registro
+	regIntentosKeyPrefix = "auth:reg:intentos:"
+	regBloqueoKeyPrefix  = "auth:reg:bloqueo:"
+
+	// Prefijos para login
+	loginIntentosKeyPrefix = "auth:login:intentos:"
+	loginBloqueoKeyPrefix  = "auth:login:bloqueo:"
 )
 
 type IntentosLimiter struct {
-	client *redis.Client
+	client            *redis.Client
+	intentosKeyPrefix string
+	bloqueoKeyPrefix  string
 }
 
-func NewIntentosLimiter(client *redis.Client) *IntentosLimiter {
-	return &IntentosLimiter{client: client}
+func NewRegistroIntentosLimiter(client *redis.Client) *IntentosLimiter {
+	return &IntentosLimiter{
+		client:            client,
+		intentosKeyPrefix: regIntentosKeyPrefix,
+		bloqueoKeyPrefix:  regBloqueoKeyPrefix,
+	}
+}
+
+func NewLoginIntentosLimiter(client *redis.Client) *IntentosLimiter {
+	return &IntentosLimiter{
+		client:            client,
+		intentosKeyPrefix: loginIntentosKeyPrefix,
+		bloqueoKeyPrefix:  loginBloqueoKeyPrefix,
+	}
 }
 
 // IncrementarIntento incrementa el contador de intentos de forma atómica
 func (l *IntentosLimiter) IncrementarIntento(ctx context.Context, cedula string) (int, error) {
-	key := intentosKeyPrefix + cedula
+	key := l.intentosKeyPrefix + cedula
 	result, err := l.client.Incr(ctx, key).Result()
 	if err != nil {
 		return 0, fmt.Errorf("error incrementando intentos: %w", err)
 	}
 	// Si es el primer intento, establecer TTL
 	if result == 1 {
-		l.client.Expire(ctx, key, time.Duration(intentosTTLSeconds)*time.Second)
+		if err := l.client.Expire(ctx, key, time.Duration(intentosTTLSeconds)*time.Second).Err(); err != nil {
+			return 0, fmt.Errorf("error estableciendo TTL de intentos: %w", err)
+		}
 	}
 	return int(result), nil
 }
 
 // VerificarBloqueo verifica si la cédula está bloqueada
 func (l *IntentosLimiter) VerificarBloqueo(ctx context.Context, cedula string) (bool, int, error) {
-	key := bloqueoKeyPrefix + cedula
+	key := l.bloqueoKeyPrefix + cedula
 	exists, err := l.client.Exists(ctx, key).Result()
 	if err != nil {
 		return false, 0, fmt.Errorf("error verificando bloqueo: %w", err)
@@ -59,17 +78,16 @@ func (l *IntentosLimiter) VerificarBloqueo(ctx context.Context, cedula string) (
 
 // ReiniciarIntentos reinicia el contador de intentos
 func (l *IntentosLimiter) ReiniciarIntentos(ctx context.Context, cedula string) error {
-	key := intentosKeyPrefix + cedula
+	key := l.intentosKeyPrefix + cedula
 	return l.client.Del(ctx, key).Err()
 }
 
 // EstablecerBloqueo establece un bloqueo para la cédula
 func (l *IntentosLimiter) EstablecerBloqueo(ctx context.Context, cedula string, ttl int) error {
-	key := bloqueoKeyPrefix + cedula
-	intentosKey := intentosKeyPrefix + cedula
+	key := l.bloqueoKeyPrefix + cedula
+	intentosKey := l.intentosKeyPrefix + cedula
 	pipe := l.client.Pipeline()
-	pipe.Set(ctx, key, "1", 0)
-	pipe.Expire(ctx, key, time.Duration(ttl)*time.Second)
+	pipe.Set(ctx, key, "1", time.Duration(ttl)*time.Second)
 	pipe.Del(ctx, intentosKey)
 	_, err := pipe.Exec(ctx)
 	if err != nil {
@@ -78,35 +96,9 @@ func (l *IntentosLimiter) EstablecerBloqueo(ctx context.Context, cedula string, 
 	return nil
 }
 
-// VerificarYBloquearSiNecesario verifica intentos y bloquea si es necesario
-func (l *IntentosLimiter) VerificarYBloquearSiNecesario(ctx context.Context, cedula string) error {
-	isBlocked, retryAfter, err := l.VerificarBloqueo(ctx, cedula)
-	if err != nil {
-		return err
-	}
-	if isBlocked {
-		return &domain.AppError{
-			Code:    domain.ErrBloqueado.Code,
-			Message: fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
-			Err:     domain.ErrBloqueado,
-		}
-	}
-	intentos, err := l.IncrementarIntento(ctx, cedula)
-	if err != nil {
-		return err
-	}
-	if intentos >= intentosMaximos {
-		if err := l.EstablecerBloqueo(ctx, cedula, bloqueoTTLSeconds); err != nil {
-			return err
-		}
-		return domain.ErrBloqueado
-	}
-	return nil
-}
-
 // ObtenerIntentos obtiene el número actual de intentos (para debugging/testing)
 func (l *IntentosLimiter) ObtenerIntentos(ctx context.Context, cedula string) (int, error) {
-	key := intentosKeyPrefix + cedula
+	key := l.intentosKeyPrefix + cedula
 	val, err := l.client.Get(ctx, key).Int()
 	if err == redis.Nil {
 		return 0, nil
