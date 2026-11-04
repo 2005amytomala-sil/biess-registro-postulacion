@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import ProtectedRoute from './ProtectedRoute';
 import LoginPage from '../pages/LoginPage';
@@ -22,7 +22,7 @@ const AppRoutes = () => {
               </ProtectedRoute>
             }
           />
-          <Route path="/" element={<LoginPage />} />
+          <Route path="/" element={<Navigate to="/login" replace />} />
         </Routes>
       </Layout>
     </BrowserRouter>

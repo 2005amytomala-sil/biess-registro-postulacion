@@ -28,14 +28,14 @@ func (h *PostulacionHandler) ObtenerPostulacion(c *gin.Context) {
 		return
 	}
 
-	postulacion, err := h.postulacionService.ObtenerPostulacion(c.Request.Context(), postulanteID)
+	cedula, ok := middleware.CedulaFrom(c)
+	if !ok {
+		c.Error(domain.ErrNoAutorizado)
+		return
+	}
+
+	postulacion, err := h.postulacionService.ObtenerPostulacion(c.Request.Context(), postulanteID, cedula)
 	if err != nil {
-		if err == domain.ErrNotFound {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "No existe postulación para este usuario",
-			})
-			return
-		}
 		c.Error(err)
 		return
 	}

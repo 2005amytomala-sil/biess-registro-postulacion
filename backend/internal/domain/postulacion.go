@@ -106,5 +106,5 @@ type GuardarPostulacionRequest struct {
 	RespaldoOrganizacion  RespaldoOrganizacion     `json:"respaldo_organizacion"`
 	Formacion             []FormacionAcademica       `json:"formacion,omitempty"`
 	Experiencia           []ExperienciaProfesional   `json:"experiencia,omitempty"`
-	Inhabilidades         []Inhabilidad             `json:"inhabilidades"`
+	Inhabilidades         []Inhabilidad             `json:"inhabilidades,omitempty"`
 }

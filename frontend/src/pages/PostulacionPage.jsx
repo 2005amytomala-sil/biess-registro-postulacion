@@ -5,6 +5,7 @@ import DatosPersonales from '../components/DatosPersonales';
 import DomicilioContacto from '../components/DomicilioContacto';
 import FamiliaresIESS from '../components/FamiliaresIESS';
 import SeleccionCargo from '../components/SeleccionCargo';
+import FormacionAcademica from '../components/postulacion/FormacionAcademica';
 import Card from '../components/Card';
 import Alert from '../components/Alert';
 import Spinner from '../components/Spinner';
@@ -46,6 +47,7 @@ const PostulacionPage = () => {
       nombre_organizacion: '',
     },
   });
+  const [formacion, setFormacion] = useState([]);
   const [postulacionCerrada, setPostulacionCerrada] = useState(false);
 
   const steps = [
@@ -53,6 +55,7 @@ const PostulacionPage = () => {
     { id: 2, title: 'Domicilio y Contacto', subtitle: 'Dirección y medios de contacto' },
     { id: 3, title: 'Información Adicional', subtitle: 'Familiares y formación' },
     { id: 4, title: 'Selección del Cargo', subtitle: 'Sector y respaldo' },
+    { id: 5, title: 'Formación Académica', subtitle: 'Estudios realizados' },
   ];
 
   // Cargar postulación al montar
@@ -68,16 +71,43 @@ const PostulacionPage = () => {
 
     if (result.success) {
       setPostulacion(result.data);
-      // Los datos personales se obtienen del backend y se mostrarán en el componente
-      setDatosPersonales({
-        nombres: 'Juan Carlos', // Estos datos vendrán del backend
-        apellidos: 'Pérez López',
-        cedula: '0101010101',
-        genero: 'masculino',
-        fecha_nacimiento: '01/01/1980',
-        nacionalidad: 'Ecuatoriana',
-        estado_civil: 'soltero',
-      });
+      // Los datos personales se obtienen del backend (datos_personales del Registro Civil)
+      if (result.data.datos_personales) {
+        const dp = result.data.datos_personales;
+        setDatosPersonales({
+          nombres: dp.nombres,
+          apellidos: dp.apellidos,
+          cedula: dp.cedula,
+          genero: dp.genero,
+          fecha_nacimiento: dp.fecha_nacimiento,
+          nacionalidad: dp.nacionalidad,
+          estado_civil: dp.estado_civil,
+          pareja_nombres: dp.pareja_nombres || '',
+          pareja_cedula: dp.pareja_cedula || '',
+        });
+      }
+      // Cargar domicilio si existe
+      if (result.data.domicilio) {
+        setDomicilio(result.data.domicilio);
+      }
+      // Cargar familiares si existe
+      if (result.data.familiares) {
+        setFamiliares({
+          tiene_familiares: result.data.tiene_familiares,
+          familiares: result.data.familiares,
+        });
+      }
+      // Cargar cargo si existe
+      if (result.data.respaldo_organizacion) {
+        setCargo({
+          sector: result.data.sector || 'afiliados',
+          respaldo_organizacion: result.data.respaldo_organizacion,
+        });
+      }
+      // Cargar formación si existe
+      if (result.data.formacion) {
+        setFormacion(result.data.formacion);
+      }
     } else if (result.message.includes('no existe')) {
       // No existe postulación, crearemos una nueva al guardar
       setPostulacion(null);
@@ -243,6 +273,32 @@ const PostulacionPage = () => {
     setSaving(false);
   };
 
+  const handleFormacionChange = (newFormacion) => {
+    setFormacion(newFormacion);
+  };
+
+  const handleGuardarFormacion = async () => {
+    setSaving(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    const datosAGuardar = {
+      sector: postulacion?.sector || 'afiliados',
+      formacion: formacion,
+    };
+
+    const result = await guardarPostulacion(datosAGuardar);
+
+    if (result.success) {
+      setSuccessMessage('Formación académica guardada exitosamente');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } else {
+      setError(result.message);
+    }
+
+    setSaving(false);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -337,6 +393,16 @@ const PostulacionPage = () => {
               datos={cargo}
               onChange={handleCargoChange}
               onSave={handleGuardarCargo}
+              saving={saving}
+              error={error}
+            />
+          )}
+
+          {currentStep === 4 && (
+            <FormacionAcademica
+              datos={formacion}
+              onChange={handleFormacionChange}
+              onSave={handleGuardarFormacion}
               saving={saving}
               error={error}
             />

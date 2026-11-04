@@ -54,3 +54,45 @@ func (r *InhabilidadesRepository) Guardar(ctx context.Context, tx pgx.Tx, inhabi
 
 	return nil
 }
+
+func (r *InhabilidadesRepository) ObtenerPorPostulacionID(ctx context.Context, postulacionID int) ([]domain.Inhabilidad, error) {
+	query := `SELECT postulacion_id, codigo_pregunta, respuesta, detalle, created_at
+	          FROM inhabilidades WHERE postulacion_id = $1`
+
+	rows, err := r.pool.Query(ctx, query, postulacionID)
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener inhabilidades: %w", err)
+	}
+	defer rows.Close()
+
+	var inhabilidades []domain.Inhabilidad
+	for rows.Next() {
+		var inhabilidad domain.Inhabilidad
+		var detalleJSONB interface{}
+		err := rows.Scan(
+			&inhabilidad.PostulacionID,
+			&inhabilidad.CodigoPregunta,
+			&inhabilidad.Respuesta,
+			&detalleJSONB,
+			&inhabilidad.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error escaneando inhabilidad: %w", err)
+		}
+
+		// Convertir JSONB a string si es necesario
+		if detalleJSONB != nil {
+			if jsonBytes, err := json.Marshal(detalleJSONB); err == nil {
+				inhabilidad.Detalle = string(jsonBytes)
+			} else {
+				inhabilidad.Detalle = ""
+			}
+		} else {
+			inhabilidad.Detalle = ""
+		}
+
+		inhabilidades = append(inhabilidades, inhabilidad)
+	}
+
+	return inhabilidades, nil
+}

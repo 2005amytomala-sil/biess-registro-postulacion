@@ -224,8 +224,8 @@ func (s *PostulacionService) GuardarPostulacion(ctx context.Context, postulanteI
 			}
 		}
 
-		// 14. Guardar inhabilidades (upsert)
-		if len(req.Inhabilidades) > 0 {
+		// 14. Guardar inhabilidades (upsert) - opcional
+		if req.Inhabilidades != nil && len(req.Inhabilidades) > 0 {
 			for i := range req.Inhabilidades {
 				req.Inhabilidades[i].PostulacionID = postulacion.ID
 			}
@@ -312,14 +312,95 @@ func (s *PostulacionService) validarExperiencia(experiencia []domain.Experiencia
 	return nil
 }
 
-// ObtenerPostulacion obtiene la postulación de un postulante
-func (s *PostulacionService) ObtenerPostulacion(ctx context.Context, postulanteID int) (*domain.Postulacion, error) {
+// ObtenerPostulacion obtiene la postulación de un postulante, creándola si no existe
+func (s *PostulacionService) ObtenerPostulacion(ctx context.Context, postulanteID int, cedula string) (map[string]interface{}, error) {
 	postulacion, err := s.postulacionRepo.ObtenerPorPostulanteID(ctx, postulanteID)
 	if err != nil {
-		return nil, err
+		// Si no existe, crear nueva postulación
+		if err.Error() == "no rows in result set" || err.Error() == "error al obtener postulación: no rows in result set" {
+			codigo, err := s.postulacionRepo.GenerarCodigoUnico(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("error generando código único: %w", err)
+			}
+
+			postulacion = &domain.Postulacion{
+				PostulanteID: postulanteID,
+				Codigo:        codigo,
+				Sector:        "afiliados",
+				Estado:        "borrador",
+			}
+
+			if err := s.postulacionRepo.CrearSinTx(ctx, postulacion); err != nil {
+				return nil, fmt.Errorf("error creando postulación: %w", err)
+			}
+		} else {
+			return nil, err
+		}
 	}
 
-	return postulacion, nil
+	// Obtener datos personales del Registro Civil
+	registroCivilData, err := s.registroCivil.ObtenerDatos(ctx, cedula)
+	if err != nil {
+		return nil, fmt.Errorf("error obteniendo datos del registro civil: %w", err)
+	}
+
+	// Obtener domicilio si existe
+	domicilio, err := s.domicilioRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
+	if err != nil && err.Error() != "no rows in result set" {
+		return nil, fmt.Errorf("error obteniendo domicilio: %w", err)
+	}
+
+	// Obtener familiares si existen
+	familiares, err := s.familiaresRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
+	if err != nil && err.Error() != "no rows in result set" {
+		return nil, fmt.Errorf("error obteniendo familiares: %w", err)
+	}
+
+	// Obtener respaldo si existe
+	respaldo, err := s.respaldosRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
+	if err != nil && err.Error() != "no rows in result set" {
+		return nil, fmt.Errorf("error obteniendo respaldo: %w", err)
+	}
+
+	// Obtener formación si existe
+	formacion, err := s.formacionRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
+	if err != nil && err.Error() != "no rows in result set" {
+		return nil, fmt.Errorf("error obteniendo formación: %w", err)
+	}
+
+	// Obtener experiencia si existe
+	experiencia, err := s.experienciaRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
+	if err != nil && err.Error() != "no rows in result set" {
+		return nil, fmt.Errorf("error obteniendo experiencia: %w", err)
+	}
+
+	// Obtener inhabilidades si existen
+	inhabilidades, err := s.inhabilidadesRepo.ObtenerPorPostulacionID(ctx, postulacion.ID)
+	if err != nil && err.Error() != "no rows in result set" {
+		return nil, fmt.Errorf("error obteniendo inhabilidades: %w", err)
+	}
+
+	// Construir respuesta completa
+	response := map[string]interface{}{
+		"id":                   postulacion.ID,
+		"postulante_id":        postulacion.PostulanteID,
+		"codigo":               postulacion.Codigo,
+		"sector":               postulacion.Sector,
+		"estado":               postulacion.Estado,
+		"motivo_cierre":        postulacion.MotivoCierre,
+		"created_at":           postulacion.CreatedAt,
+		"updated_at":           postulacion.UpdatedAt,
+		"datos_personales":     registroCivilData,
+		"domicilio":            domicilio,
+		"tiene_familiares":     len(familiares) > 0,
+		"familiares":           familiares,
+		"respaldo_organizacion": respaldo,
+		"formacion":            formacion,
+		"experiencia":          experiencia,
+		"inhabilidades":        inhabilidades,
+	}
+
+	return response, nil
 }
 
 // EnviarPostulacion envía la postulación (cambia estado a "enviada" y genera código único)

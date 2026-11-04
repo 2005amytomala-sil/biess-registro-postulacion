@@ -52,3 +52,37 @@ func (r *ExperienciaRepository) Guardar(ctx context.Context, tx pgx.Tx, experien
 
 	return nil
 }
+
+func (r *ExperienciaRepository) ObtenerPorPostulacionID(ctx context.Context, postulacionID int) ([]domain.ExperienciaProfesional, error) {
+	query := `SELECT id, postulacion_id, tipo, cargo, institucion, fecha_inicio, fecha_fin, actividades_relacionadas, descripcion, created_at
+	          FROM experiencia_profesional WHERE postulacion_id = $1`
+
+	rows, err := r.pool.Query(ctx, query, postulacionID)
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener experiencia: %w", err)
+	}
+	defer rows.Close()
+
+	var experiencias []domain.ExperienciaProfesional
+	for rows.Next() {
+		var experiencia domain.ExperienciaProfesional
+		err := rows.Scan(
+			&experiencia.ID,
+			&experiencia.PostulacionID,
+			&experiencia.Tipo,
+			&experiencia.Cargo,
+			&experiencia.Institucion,
+			&experiencia.FechaInicio,
+			&experiencia.FechaFin,
+			&experiencia.ActividadesRelacionadas,
+			&experiencia.Descripcion,
+			&experiencia.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("error escaneando experiencia: %w", err)
+		}
+		experiencias = append(experiencias, experiencia)
+	}
+
+	return experiencias, nil
+}
