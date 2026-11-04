@@ -37,12 +37,21 @@ api.interceptors.response.use(
 
     switch (status) {
       case 401:
-        // No autorizado: cerrar sesión y redirigir
-        localStorage.removeItem('token');
-        localStorage.removeItem('usuario');
-        window.location.href = '/login';
+        // No autorizado: solo cerrar sesión y redirigir si el usuario tiene una sesión activa
+        const hasToken = localStorage.getItem('token');
+        if (hasToken) {
+          localStorage.removeItem('token');
+          localStorage.removeItem('usuario');
+          window.location.href = '/login';
+          return Promise.reject({
+            message: 'Su sesión ha expirado. Por favor, inicie sesión nuevamente.',
+            originalError: error,
+          });
+        }
+        // Si no hay sesión (ej. registro), usar mensaje del servidor
+        const authMessage = data?.error || data?.message;
         return Promise.reject({
-          message: 'Su sesión ha expirado. Por favor, inicie sesión nuevamente.',
+          message: authMessage || 'Error de autenticación',
           originalError: error,
         });
 

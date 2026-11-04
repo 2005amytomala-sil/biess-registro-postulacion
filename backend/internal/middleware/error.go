@@ -60,7 +60,7 @@ func httpStatusFromAppError(err *domain.AppError) int {
 	case "YA_REGISTRADO":
 		return http.StatusConflict
 	case "IDENTIDAD_INVALIDA":
-		return http.StatusBadRequest
+		return http.StatusUnauthorized
 	case "CREDENCIALES_INVALIDAS":
 		return http.StatusUnauthorized
 	case "PASSWORD_MISMATCH":

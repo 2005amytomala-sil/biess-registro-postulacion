@@ -49,30 +49,33 @@ func (s *AuthService) VerificarIdentidad(ctx context.Context, cedula string, fec
 	}
 	if isBlocked {
 		return nil, &domain.AppError{
-			Code:    domain.ErrBloqueado.Code,
-			Message: fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
-			Err:     domain.ErrBloqueado,
+			Code:       domain.ErrBloqueado.Code,
+			Message:    fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
+			Err:        domain.ErrBloqueado,
+			RetryAfter: retryAfter,
 		}
 	}
 
-	// Verificar con el mock del Registro Civil
-	data, err := s.registroCivil.VerificarIdentidad(ctx, cedula, fechaExpedicion, codigoDactilar)
-	if err != nil {
-		// Incrementar intentos de forma atómica
+	// Verificar con el Registro Civil
+	data, errRC := s.registroCivil.VerificarIdentidad(ctx, cedula, fechaExpedicion, codigoDactilar)
+	if errRC != nil {
+		// Contar el intento fallido de forma atómica
 		intentos, err := s.intentosLimiter.IncrementarIntento(ctx, cedula)
 		if err != nil {
 			return nil, err
 		}
-		// Si alcanzó el máximo (3), establecer bloqueo
+		// Al tercer fallo consecutivo, bloquear 10 minutos
 		if intentos >= 3 {
 			s.intentosLimiter.EstablecerBloqueo(ctx, cedula, 600)
 			return nil, &domain.AppError{
-				Code:    domain.ErrBloqueado.Code,
-				Message: domain.ErrBloqueado.Message,
-				Err:     domain.ErrBloqueado,
+				Code:       domain.ErrBloqueado.Code,
+				Message:    domain.ErrBloqueado.Message,
+				Err:        domain.ErrBloqueado,
+				RetryAfter: 600,
 			}
 		}
-		return nil, err
+		// Devolver el error real del Registro Civil (IDENTIDAD_INVALIDA)
+		return nil, errRC
 	}
 
 	// Validar nacionalidad ecuatoriana
@@ -149,9 +152,10 @@ func (s *AuthService) Login(ctx context.Context, cedula string, password string)
 	}
 	if isBlocked {
 		return nil, &domain.AppError{
-			Code:    domain.ErrBloqueado.Code,
-			Message: fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
-			Err:     domain.ErrBloqueado,
+			Code:       domain.ErrBloqueado.Code,
+			Message:    fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
+			Err:        domain.ErrBloqueado,
+			RetryAfter: retryAfter,
 		}
 	}
 

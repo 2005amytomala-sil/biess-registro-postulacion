@@ -5,9 +5,10 @@ import (
 )
 
 type AppError struct {
-	Code    string
-	Message string
-	Err     error
+	Code       string
+	Message    string
+	Err        error
+	RetryAfter int // Tiempo restante en segundos para bloqueos (opcional)
 }
 
 func (e *AppError) Error() string {
