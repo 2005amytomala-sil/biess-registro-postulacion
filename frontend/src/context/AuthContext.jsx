@@ -56,22 +56,16 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem('usuario');
   };
 
+  // El registro no inicia sesión: el usuario debe ingresar luego por /login
   const register = async (datos) => {
     try {
       const response = await api.post('/auth/registro', datos);
-      const { token, user } = response.data;
-
-      setToken(token);
-      setUsuario(user);
-
-      localStorage.setItem('token', token);
-      localStorage.setItem('usuario', JSON.stringify(user));
-
       return { success: true, data: response.data };
     } catch (error) {
       return {
         success: false,
         message: error.message || 'Error al registrar usuario',
+        retryAfter: error.retryAfter,
       };
     }
   };
@@ -88,6 +82,7 @@ export const AuthProvider = ({ children }) => {
       return {
         success: false,
         message: error.message || 'Error al verificar identidad',
+        retryAfter: error.retryAfter,
       };
     }
   };
@@ -104,6 +99,7 @@ export const AuthProvider = ({ children }) => {
       return {
         success: false,
         message: error.message || 'Error al recuperar contraseña',
+        retryAfter: error.retryAfter,
       };
     }
   };

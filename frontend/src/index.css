@@ -1,1 +1,45 @@
-   @import "tailwindcss";
+@import "tailwindcss";
+
+/*
+ * Identidad visual institucional.
+ * La escala "blue" se redefine con un azul institucional más sobrio para que todas las
+ * clases existentes (bg-blue-600, text-blue-700, ring-blue-500...) usen la misma paleta.
+ */
+@theme {
+  --font-sans: "Inter", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  --color-blue-50: #eef4fb;
+  --color-blue-100: #d8e5f5;
+  --color-blue-200: #b3cbeb;
+  --color-blue-300: #84a9dc;
+  --color-blue-400: #5383c8;
+  --color-blue-500: #2f64b0;
+  --color-blue-600: #1f4f96;
+  --color-blue-700: #183f7a;
+  --color-blue-800: #133263;
+  --color-blue-900: #0e264c;
+  --color-blue-950: #091933;
+}
+
+@layer base {
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-slate-50 font-sans text-slate-800;
+  }
+
+  /* Foco visible y consistente para navegación con teclado */
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-500;
+  }
+
+  /* Un fieldset deshabilitado (modo solo lectura) atenúa sus controles */
+  fieldset:disabled input,
+  fieldset:disabled select,
+  fieldset:disabled textarea {
+    @apply cursor-not-allowed bg-slate-100 text-slate-500;
+  }
+}

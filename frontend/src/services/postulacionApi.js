@@ -1,42 +1,41 @@
 import api from './api';
 
+// Normaliza el error del interceptor: { success:false, message, status, codigo, data }
+const fallo = (error, mensajePorDefecto) => ({
+  success: false,
+  message: error.message || mensajePorDefecto,
+  status: error.status,
+  codigo: error.codigo,
+  data: error.data || {},
+});
+
 // Obtener postulación del usuario actual
 export const obtenerPostulacion = async () => {
   try {
     const response = await api.get('/postulaciones/me');
     return { success: true, data: response.data };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.error || 'Error al obtener postulación',
-    };
+    return fallo(error, 'Error al obtener postulación');
   }
 };
 
-// Guardar postulación (guardado de progreso por sección)
+// Guardar postulación (guardado parcial: solo las secciones enviadas)
 export const guardarPostulacion = async (datos) => {
   try {
     const response = await api.put('/postulaciones/me', datos);
     return { success: true, data: response.data };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.error || 'Error al guardar postulación',
-      codigo: error.response?.data?.codigo,
-    };
+    return fallo(error, 'Error al guardar postulación');
   }
 };
 
-// Enviar postulación (valida completitud y cambia estado a "enviada")
-export const enviarPostulacion = async () => {
+// Enviar postulación (el backend valida completitud y consentimiento)
+export const enviarPostulacion = async (aceptaConsentimiento) => {
   try {
-    const response = await api.post('/postulaciones/me/enviar');
+    const response = await api.post('/postulaciones/me/enviar', { acepta_consentimiento: aceptaConsentimiento });
     return { success: true, data: response.data };
   } catch (error) {
-    return {
-      success: false,
-      message: error.response?.data?.error || 'Error al enviar postulación',
-    };
+    return fallo(error, 'Error al enviar postulación');
   }
 };
 
@@ -46,10 +45,7 @@ export const obtenerPaises = async () => {
     const response = await api.get('/catalogos/paises');
     return { success: true, data: response.data };
   } catch (error) {
-    return {
-      success: false,
-      message: 'Error al obtener países',
-    };
+    return fallo(error, 'Error al obtener países');
   }
 };
 
@@ -59,10 +55,7 @@ export const obtenerProvincias = async () => {
     const response = await api.get('/catalogos/provincias');
     return { success: true, data: response.data };
   } catch (error) {
-    return {
-      success: false,
-      message: 'Error al obtener provincias',
-    };
+    return fallo(error, 'Error al obtener provincias');
   }
 };
 
@@ -72,9 +65,6 @@ export const obtenerCantonesPorProvincia = async (provinciaId) => {
     const response = await api.get(`/catalogos/provincias/${provinciaId}/cantones`);
     return { success: true, data: response.data };
   } catch (error) {
-    return {
-      success: false,
-      message: 'Error al obtener cantones',
-    };
+    return fallo(error, 'Error al obtener cantones');
   }
 };

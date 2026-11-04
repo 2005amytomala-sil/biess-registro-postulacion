@@ -124,7 +124,7 @@ const FamiliaresIESS = ({ datos, onChange, onSave, saving, error }) => {
 
         {/* Pregunta sobre familiares */}
         <div className="space-y-3">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-slate-700">
             ¿Tiene familiares dentro del 2.º grado de consanguinidad y 4.º de afinidad en IESS/BIESS?
           </label>
           <div className="flex gap-4">
@@ -157,7 +157,7 @@ const FamiliaresIESS = ({ datos, onChange, onSave, saving, error }) => {
         {datos.tiene_familiares && (
           <div className="space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="text-sm font-medium text-gray-900">Lista de Familiares</h3>
+              <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Lista de Familiares</h3>
               <Button
                 type="button"
                 variant="outline"
@@ -170,8 +170,8 @@ const FamiliaresIESS = ({ datos, onChange, onSave, saving, error }) => {
 
             {/* Formulario de edición/creación */}
             {editandoIndex !== null && (
-              <div className="bg-gray-50 border rounded-lg p-4 space-y-4">
-                <h4 className="text-sm font-medium text-gray-900">
+              <div className="bg-slate-50 border rounded-lg p-4 space-y-4">
+                <h4 className="text-sm font-medium text-slate-900">
                   {editandoIndex === 'nuevo' ? 'Nuevo Familiar' : 'Editar Familiar'}
                 </h4>
 
@@ -240,15 +240,15 @@ const FamiliaresIESS = ({ datos, onChange, onSave, saving, error }) => {
                     className="bg-white border rounded-lg p-4 flex justify-between items-start"
                   >
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{familiar.nombres}</p>
-                      <p className="text-sm text-gray-600">
+                      <p className="font-medium text-slate-900">{familiar.nombres}</p>
+                      <p className="text-sm text-slate-600">
                         {familiar.parentesco} - {familiar.institucion}
                       </p>
                       {familiar.area && (
-                        <p className="text-sm text-gray-500">Área: {familiar.area}</p>
+                        <p className="text-sm text-slate-500">Área: {familiar.area}</p>
                       )}
                       {familiar.cargo && (
-                        <p className="text-sm text-gray-500">Cargo: {familiar.cargo}</p>
+                        <p className="text-sm text-slate-500">Cargo: {familiar.cargo}</p>
                       )}
                     </div>
                     <div className="flex gap-2 ml-4">
@@ -276,7 +276,7 @@ const FamiliaresIESS = ({ datos, onChange, onSave, saving, error }) => {
               </div>
             ) : (
               !editandoIndex && (
-                <div className="text-center py-8 text-gray-500 border-2 border-dashed rounded-lg">
+                <div className="text-center py-8 text-slate-500 border-2 border-dashed rounded-lg">
                   No hay familiares agregados. Click en "Agregar Familiar" para comenzar.
                 </div>
               )
@@ -292,14 +292,13 @@ const FamiliaresIESS = ({ datos, onChange, onSave, saving, error }) => {
           </div>
         )}
 
-        <div className="flex justify-end">
-          <button
+        <div className="flex justify-end border-t border-slate-100 pt-5">
+          <Button
             onClick={onSave}
             disabled={saving || (datos.tiene_familiares && datos.familiares.length === 0)}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Guardando...' : 'Guardar'}
-          </button>
+          </Button>
         </div>
       </div>
     </Card>

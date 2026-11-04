@@ -1,11 +1,19 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import ProtectedRoute from './ProtectedRoute';
+import { useAuth } from '../context/AuthContext';
 import LoginPage from '../pages/LoginPage';
 import RegistroPage from '../pages/RegistroPage';
 import RecuperarPage from '../pages/RecuperarPage';
 import DashboardPage from '../pages/DashboardPage';
 import PostulacionPage from '../pages/PostulacionPage';
+
+// Redirige según la sesión: con sesión a /dashboard, sin sesión a /login
+const RedireccionPorSesion = () => {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return null;
+  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />;
+};
 
 const AppRoutes = () => {
   return (
@@ -31,7 +39,7 @@ const AppRoutes = () => {
               </ProtectedRoute>
             }
           />
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<RedireccionPorSesion />} />
         </Routes>
       </Layout>
     </BrowserRouter>

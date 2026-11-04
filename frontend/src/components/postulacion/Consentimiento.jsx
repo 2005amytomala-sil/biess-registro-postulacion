@@ -1,33 +1,39 @@
 import { useState } from 'react';
 import Card from '../Card';
 import Button from '../Button';
-import Alert from '../Alert';
-import { enviarPostulacion } from '../../services/postulacionApi';
+import { PASO_POR_SECCION } from '../../utils/completitud';
 
-const Consentimiento = ({ postulacion, onEnviar, saving, error }) => {
+const ListaFaltantes = ({ titulo, faltantes, onIrAPaso }) => (
+  <div className="bg-yellow-50 border border-yellow-300 rounded-lg p-4">
+    <p className="text-sm font-medium text-yellow-900 mb-2">{titulo}</p>
+    <ul className="text-sm text-yellow-800 space-y-1 list-disc list-inside">
+      {faltantes.map((f) => (
+        <li key={`${f.seccion}-${f.mensaje}`}>
+          {PASO_POR_SECCION[f.seccion] !== undefined && f.seccion !== 'consentimiento' ? (
+            <button
+              type="button"
+              onClick={() => onIrAPaso(PASO_POR_SECCION[f.seccion])}
+              className="underline hover:text-yellow-900"
+            >
+              {f.mensaje}
+            </button>
+          ) : (
+            f.mensaje
+          )}
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
+const Consentimiento = ({ postulacion, faltantes = [], faltantesServidor = [], onEnviar, enviando, onIrAPaso }) => {
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
-  const [enviado, setEnviado] = useState(postulacion?.estado === 'enviada');
-  const [codigoUnico, setCodigoUnico] = useState(postulacion?.estado === 'enviada' ? postulacion.codigo : null);
-  const [enviando, setEnviando] = useState(false);
+  const enviado = postulacion?.estado === 'enviada';
+  const codigoUnico = postulacion?.codigo;
+  const completa = faltantes.length === 0;
 
-  const handleEnviar = async () => {
-    if (!aceptaTerminos) {
-      alert('Debe aceptar los términos y condiciones para enviar la postulación');
-      return;
-    }
-
-    setEnviando(true);
-    const result = await enviarPostulacion();
-
-    if (result.success) {
-      setEnviado(true);
-      setCodigoUnico(result.data.codigo || postulacion?.codigo);
-      onEnviar();
-    } else {
-      alert('Error al enviar la postulación: ' + result.message);
-    }
-
-    setEnviando(false);
+  const handleEnviar = () => {
+    if (aceptaTerminos && completa) onEnviar(aceptaTerminos);
   };
 
   if (enviado) {
@@ -47,9 +53,9 @@ const Consentimiento = ({ postulacion, onEnviar, saving, error }) => {
               Gracias por participar en el concurso público de méritos del BIESS.
             </p>
             <div className="bg-white border border-green-300 rounded-lg p-4 text-center">
-              <p className="text-sm text-gray-600 mb-1">Su código de postulación es:</p>
+              <p className="text-sm text-slate-600 mb-1">Su código de postulación es:</p>
               <p className="text-2xl font-bold text-green-700">{codigoUnico}</p>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-slate-500 mt-2">
                 Guarde este código para futuras consultas sobre su postulación.
               </p>
             </div>
@@ -67,7 +73,7 @@ const Consentimiento = ({ postulacion, onEnviar, saving, error }) => {
           <div className="flex justify-center">
             <Button
               type="button"
-              onClick={() => window.location.href = '/'}
+              onClick={() => (window.location.href = '/dashboard')}
               variant="secondary"
             >
               Volver al Inicio
@@ -81,13 +87,26 @@ const Consentimiento = ({ postulacion, onEnviar, saving, error }) => {
   return (
     <Card title="1.10 Consentimiento y Envío">
       <div className="space-y-6">
-        {error && <Alert type="error" message={error} onClose={() => {}} />}
+        {faltantesServidor.length > 0 && (
+          <ListaFaltantes
+            titulo="El servidor rechazó el envío. Complete lo siguiente:"
+            faltantes={faltantesServidor}
+            onIrAPaso={onIrAPaso}
+          />
+        )}
+        {!completa && (
+          <ListaFaltantes
+            titulo="Para enviar la postulación primero debe completar:"
+            faltantes={faltantes}
+            onIrAPaso={onIrAPaso}
+          />
+        )}
 
         {/* Texto de consentimiento */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-gray-900">Declaración y Consentimiento</h3>
+        <div className="bg-slate-50 border border-slate-200 rounded-lg p-6 space-y-4">
+          <h3 className="text-lg font-semibold text-slate-900">Declaración y Consentimiento</h3>
           
-          <div className="space-y-3 text-sm text-gray-700">
+          <div className="space-y-3 text-sm text-slate-700">
             <p>
               <strong>Declaro bajo juramento</strong> que la información proporcionada en este formulario 
               de postulación es veraz, completa y correcta en todos sus aspectos.
@@ -120,8 +139,8 @@ const Consentimiento = ({ postulacion, onEnviar, saving, error }) => {
             </p>
           </div>
 
-          <div className="border-t border-gray-300 pt-4 mt-4">
-            <p className="text-sm text-gray-600 italic">
+          <div className="border-t border-slate-300 pt-4 mt-4">
+            <p className="text-sm text-slate-600 italic">
               Al hacer clic en "Enviar Postulación", confirmo que he leído, entendido y aceptado los 
               términos y condiciones establecidos en esta declaración.
             </p>
@@ -135,9 +154,10 @@ const Consentimiento = ({ postulacion, onEnviar, saving, error }) => {
             id="aceptaTerminos"
             checked={aceptaTerminos}
             onChange={(e) => setAceptaTerminos(e.target.checked)}
-            className="mt-1 mr-3 w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+            disabled={enviando}
+            className="mt-1 mr-3 w-5 h-5 text-blue-600 border-slate-300 rounded focus:ring-blue-500"
           />
-          <label htmlFor="aceptaTerminos" className="text-sm text-gray-700">
+          <label htmlFor="aceptaTerminos" className="text-sm text-slate-700">
             <strong>He leído, entendido y acepto</strong> los términos y condiciones de la declaración 
             y autorizo el envío de mi postulación.
           </label>
@@ -148,7 +168,7 @@ const Consentimiento = ({ postulacion, onEnviar, saving, error }) => {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => window.history.back()}
+            onClick={() => onIrAPaso(6)}
             disabled={enviando}
           >
             Volver
@@ -157,7 +177,7 @@ const Consentimiento = ({ postulacion, onEnviar, saving, error }) => {
             type="button"
             onClick={handleEnviar}
             loading={enviando}
-            disabled={!aceptaTerminos || enviando}
+            disabled={!aceptaTerminos || !completa || enviando}
           >
             {enviando ? 'Enviando...' : 'Enviar Postulación'}
           </Button>

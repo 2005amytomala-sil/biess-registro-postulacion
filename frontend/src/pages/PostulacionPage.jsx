@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Stepper from '../components/Stepper';
 import DatosPersonales from '../components/DatosPersonales';
@@ -12,399 +12,253 @@ import Consentimiento from '../components/postulacion/Consentimiento';
 import Card from '../components/Card';
 import Alert from '../components/Alert';
 import Spinner from '../components/Spinner';
-import { obtenerPostulacion, guardarPostulacion } from '../services/postulacionApi';
+import Button from '../components/Button';
+import { obtenerPostulacion, guardarPostulacion, enviarPostulacion } from '../services/postulacionApi';
+import { calcularFaltantes } from '../utils/completitud';
+
+const DOMICILIO_INICIAL = {
+  pais_id: 1,
+  provincia_id: null,
+  canton_id: null,
+  provincia_texto: '',
+  ciudad_texto: '',
+  celular: '',
+  correo_1: '',
+  correo_2: '',
+  calle_principal: '',
+  numero: '',
+  calle_secundaria: '',
+  sector: '',
+  referencia: '',
+  telefono_domicilio: '',
+};
+
+// Errores del backend que significan que la postulación quedó cerrada (motivo exacto en el mensaje)
+const CODIGOS_CIERRE = ['NACIONALIDAD_NO_PERMITIDA', 'SECTOR_NO_VALIDO', 'POSTULACION_CERRADA'];
+
+const steps = [
+  { id: 1, title: 'Información Personal', subtitle: 'Datos del Registro Civil' },
+  { id: 2, title: 'Domicilio y Contacto', subtitle: 'Dirección y medios de contacto' },
+  { id: 3, title: 'Información Adicional', subtitle: 'Familiares en IESS/BIESS' },
+  { id: 4, title: 'Selección del Cargo', subtitle: 'Sector y respaldo' },
+  { id: 5, title: 'Formación Académica', subtitle: 'Estudios realizados' },
+  { id: 6, title: 'Experiencia Profesional', subtitle: 'Trayectoria laboral' },
+  { id: 7, title: 'Inhabilidades', subtitle: 'Declaración de inhabilidades' },
+  { id: 8, title: 'Consentimiento', subtitle: 'Envío de postulación' },
+];
+
+// Aviso destacado del estado de la postulación (cerrada o enviada)
+const AvisoEstado = ({ tipo, titulo, detalle, nota }) => {
+  const cerrada = tipo === 'cerrada';
+  return (
+    <div
+      role={cerrada ? 'alert' : 'status'}
+      className={`flex gap-4 rounded-xl border-l-4 p-4 shadow-sm sm:p-5 ${
+        cerrada ? 'border-red-600 bg-red-50 text-red-900' : 'border-emerald-600 bg-emerald-50 text-emerald-900'
+      }`}
+    >
+      <span
+        className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full ${
+          cerrada ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'
+        }`}
+        aria-hidden="true"
+      >
+        <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {cerrada ? (
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          ) : (
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          )}
+        </svg>
+      </span>
+      <div className="min-w-0">
+        <p className="font-semibold">{titulo}</p>
+        {detalle && <p className="mt-1 break-words text-sm">{detalle}</p>}
+        {nota && <p className={`mt-1 text-xs ${cerrada ? 'text-red-700' : 'text-emerald-700'}`}>{nota}</p>}
+      </div>
+    </div>
+  );
+};
 
 const PostulacionPage = () => {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
   const [postulacion, setPostulacion] = useState(null);
-  const [datosPersonales, setDatosPersonales] = useState(null);
-  const [domicilio, setDomicilio] = useState({
-    pais_id: 1,
-    provincia_id: null,
-    canton_id: null,
-    provincia_texto: '',
-    ciudad_texto: '',
-    celular: '',
-    correo_1: '',
-    correo_2: '',
-    calle_principal: '',
-    numero: '',
-    calle_secundaria: '',
-    sector: '',
-    referencia: '',
-    telefono_domicilio: '',
-  });
-  const [familiares, setFamiliares] = useState({
-    tiene_familiares: false,
-    familiares: [],
-  });
+  const [motivoCierre, setMotivoCierre] = useState(null);
+  const [erroresDomicilio, setErroresDomicilio] = useState({});
+  const [faltantesServidor, setFaltantesServidor] = useState([]);
+
+  const [domicilio, setDomicilio] = useState(DOMICILIO_INICIAL);
+  const [familiares, setFamiliares] = useState({ tiene_familiares: false, familiares: [] });
   const [cargo, setCargo] = useState({
     sector: '',
-    respaldo_organizacion: {
-      tiene_respaldo: false,
-      nombre_organizacion: '',
-    },
+    respaldo_organizacion: { tiene_respaldo: false, nombre_organizacion: '' },
   });
   const [formacion, setFormacion] = useState([]);
   const [experiencia, setExperiencia] = useState([]);
   const [inhabilidades, setInhabilidades] = useState([]);
-  const [postulacionEnviada, setPostulacionEnviada] = useState(false);
-  const [postulacionCerrada, setPostulacionCerrada] = useState(false);
 
-  const steps = [
-    { id: 1, title: 'Información Personal', subtitle: 'Datos del Registro Civil' },
-    { id: 2, title: 'Domicilio y Contacto', subtitle: 'Dirección y medios de contacto' },
-    { id: 3, title: 'Información Adicional', subtitle: 'Familiares y formación' },
-    { id: 4, title: 'Selección del Cargo', subtitle: 'Sector y respaldo' },
-    { id: 5, title: 'Formación Académica', subtitle: 'Estudios realizados' },
-    { id: 6, title: 'Experiencia Profesional', subtitle: 'Trayectoria laboral' },
-    { id: 7, title: 'Inhabilidades', subtitle: 'Declaración de inhabilidades' },
-    { id: 8, title: 'Consentimiento', subtitle: 'Envío de postulación' },
-  ];
+  const enviada = postulacion?.estado === 'enviada';
+  const cerrada = motivoCierre !== null || postulacion?.estado === 'cerrada';
+  const soloLectura = enviada || cerrada;
+  const faltantes = useMemo(() => calcularFaltantes(postulacion), [postulacion]);
 
-  // Cargar postulación al montar
-  useEffect(() => {
-    cargarPostulacion();
+  // Vuelca la postulación del servidor en el estado de cada sección
+  const aplicarPostulacion = (data) => {
+    setPostulacion(data);
+    if (data.estado === 'cerrada') setMotivoCierre(data.motivo_cierre || 'Su postulación ha sido cerrada.');
+    setDomicilio(data.domicilio ? { ...DOMICILIO_INICIAL, ...data.domicilio } : DOMICILIO_INICIAL);
+    setFamiliares({ tiene_familiares: !!data.tiene_familiares, familiares: data.familiares || [] });
+    setCargo({
+      sector: data.respaldo_organizacion ? data.sector || '' : '',
+      respaldo_organizacion: data.respaldo_organizacion || { tiene_respaldo: false, nombre_organizacion: '' },
+    });
+    setFormacion(data.formacion || []);
+    setExperiencia(data.experiencia || []);
+    setInhabilidades(data.inhabilidades || []);
+  };
+
+  // Trata las respuestas de error comunes: cierre (422/409) y postulación ya enviada (409)
+  const manejarError = (result) => {
+    if (CODIGOS_CIERRE.includes(result.codigo)) {
+      setMotivoCierre(result.data?.motivo_cierre || result.message);
+      return true;
+    }
+    if (result.codigo === 'POSTULACION_ENVIADA') {
+      setPostulacion((prev) => ({ ...prev, estado: 'enviada', codigo: result.data?.codigo || prev?.codigo }));
+      setError(result.message);
+      return true;
+    }
+    setError(result.message);
+    return false;
+  };
+
+  const cargarPostulacion = useCallback(async ({ silencioso = false } = {}) => {
+    if (!silencioso) setLoading(true);
+    const result = await obtenerPostulacion();
+    if (result.success) {
+      aplicarPostulacion(result.data);
+    } else if (!silencioso) {
+      manejarError(result);
+    }
+    if (!silencioso) setLoading(false);
   }, []);
 
-  const cargarPostulacion = async () => {
-    setLoading(true);
+  useEffect(() => {
+    cargarPostulacion();
+  }, [cargarPostulacion]);
+
+  const irAPaso = (index) => {
     setError(null);
-
-    const result = await obtenerPostulacion();
-
-    if (result.success) {
-      setPostulacion(result.data);
-      if (result.data.estado === 'enviada') {
-        setPostulacionEnviada(true);
-      }
-      // Los datos personales se obtienen del backend (datos_personales del Registro Civil)
-      if (result.data.datos_personales) {
-        const dp = result.data.datos_personales;
-        setDatosPersonales({
-          nombres: dp.nombres,
-          apellidos: dp.apellidos,
-          cedula: dp.cedula,
-          genero: dp.genero,
-          fecha_nacimiento: dp.fecha_nacimiento,
-          nacionalidad: dp.nacionalidad,
-          estado_civil: dp.estado_civil,
-          pareja_nombres: dp.pareja_nombres || '',
-          pareja_cedula: dp.pareja_cedula || '',
-        });
-      } else {
-        // Si no hay datos personales, mostramos mensaje informativo
-        setDatosPersonales(null);
-      }
-      // Cargar domicilio si existe
-      if (result.data.domicilio) {
-        setDomicilio(result.data.domicilio);
-      }
-      // Cargar familiares si existe
-      if (result.data.familiares) {
-        setFamiliares({
-          tiene_familiares: result.data.tiene_familiares,
-          familiares: result.data.familiares,
-        });
-      }
-      // Cargar cargo si existe
-      if (result.data.respaldo_organizacion) {
-        setCargo({
-          sector: result.data.sector || 'afiliados',
-          respaldo_organizacion: result.data.respaldo_organizacion,
-        });
-      }
-      // Cargar formación si existe
-      if (result.data.formacion) {
-        setFormacion(result.data.formacion);
-      }
-      // Cargar experiencia si existe
-      if (result.data.experiencia) {
-        setExperiencia(result.data.experiencia);
-      }
-      // Cargar inhabilidades si existen
-      if (result.data.inhabilidades) {
-        setInhabilidades(result.data.inhabilidades);
-      }
-    } else if (result.message.includes('no existe')) {
-      // No existe postulación, crearemos una nueva al guardar
-      setPostulacion(null);
-    } else {
-      setError(result.message);
-    }
-
-    setLoading(false);
+    setCurrentStep(index);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleStepClick = (stepIndex) => {
-    // Solo permitir ir hacia atrás o a pasos completados
-    if (stepIndex <= currentStep) {
-      setCurrentStep(stepIndex);
-    }
-  };
-
-  const handleNext = () => {
-    if (currentStep < steps.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handlePrevious = () => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-
-  const handleGuardar = async () => {
+  // Guardado parcial: envía solo la sección indicada y refresca el estado para la completitud
+  const guardarSeccion = async (datos, mensajeExito, { onFieldErrors } = {}) => {
+    if (soloLectura) return;
     setSaving(true);
     setError(null);
     setSuccessMessage(null);
+    onFieldErrors?.({});
 
-    // Guardar según el paso actual
-    let datosAGuardar = {
-      sector: postulacion?.sector || cargo.sector || 'afiliados',
-    };
-
-    if (currentStep === 1) {
-      // Guardar domicilio
-      datosAGuardar = {
-        ...datosAGuardar,
-        domicilio: domicilio,
-      };
-    } else if (currentStep === 2) {
-      // Guardar familiares
-      datosAGuardar = {
-        ...datosAGuardar,
-        tiene_familiares: familiares.tiene_familiares,
-        familiares: familiares.familiares,
-      };
-    } else if (currentStep === 3) {
-      // Guardar cargo
-      datosAGuardar = {
-        sector: cargo.sector,
-        respaldo_organizacion: cargo.respaldo_organizacion,
-      };
-    }
-
-    const result = await guardarPostulacion(datosAGuardar);
+    const result = await guardarPostulacion(datos);
 
     if (result.success) {
-      setSuccessMessage('Progreso guardado exitosamente');
+      setSuccessMessage(mensajeExito);
       setTimeout(() => setSuccessMessage(null), 3000);
-      // Actualizar el sector en la postulación si se guardó en paso 3
-      if (currentStep === 3) {
-        setPostulacion({ ...postulacion, sector: cargo.sector });
-      }
+      setFaltantesServidor([]);
+      await cargarPostulacion({ silencioso: true });
     } else {
-      setError(result.message);
-      // Si el error es de sector no válido, cerrar la postulación
-      if (result.codigo === 'SECTOR_NO_VALIDO') {
-        setPostulacionCerrada(true);
-      }
+      if (result.data?.campo) onFieldErrors?.({ [result.data.campo]: result.message });
+      manejarError(result);
     }
-
     setSaving(false);
   };
 
-  const handleDomicilioChange = (newDomicilio) => {
-    setDomicilio(newDomicilio);
+  const handleGuardarDomicilio = () =>
+    guardarSeccion({ domicilio }, 'Domicilio guardado exitosamente', { onFieldErrors: setErroresDomicilio });
+
+  const handleGuardarFamiliares = () =>
+    guardarSeccion(
+      { tiene_familiares: familiares.tiene_familiares, familiares: familiares.familiares },
+      'Familiares guardados exitosamente'
+    );
+
+  const handleGuardarCargo = () =>
+    guardarSeccion(
+      { sector: cargo.sector, respaldo_organizacion: cargo.respaldo_organizacion },
+      'Selección de cargo guardada exitosamente'
+    );
+
+  const handleGuardarFormacion = () => guardarSeccion({ formacion }, 'Formación académica guardada exitosamente');
+
+  const handleGuardarExperiencia = () =>
+    guardarSeccion({ experiencia }, 'Experiencia profesional guardada exitosamente');
+
+  // Inhabilidades entrega los datos al guardar porque el estado del padre aún no se actualizó
+  const handleGuardarInhabilidades = (datos) =>
+    guardarSeccion(
+      { inhabilidades: Array.isArray(datos) ? datos : inhabilidades },
+      'Inhabilidades guardadas exitosamente'
+    );
+
+  // Inhabilidades no está aquí: mantiene sus respuestas internamente y guarda con su propio botón
+  const guardadoPorPaso = {
+    1: handleGuardarDomicilio,
+    2: handleGuardarFamiliares,
+    3: handleGuardarCargo,
+    4: handleGuardarFormacion,
+    5: handleGuardarExperiencia,
   };
 
-  const handleGuardarDomicilio = async () => {
-    setSaving(true);
+  const handleEnviarPostulacion = async (aceptaConsentimiento) => {
+    setEnviando(true);
     setError(null);
-    setSuccessMessage(null);
+    setFaltantesServidor([]);
 
-    const datosAGuardar = {
-      sector: postulacion?.sector || 'afiliados',
-      domicilio: domicilio,
-    };
-
-    const result = await guardarPostulacion(datosAGuardar);
+    const result = await enviarPostulacion(aceptaConsentimiento);
 
     if (result.success) {
-      setSuccessMessage('Domicilio guardado exitosamente');
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } else {
+      setPostulacion((prev) => ({ ...prev, estado: 'enviada', codigo: result.data.codigo }));
+      setSuccessMessage('Postulación enviada exitosamente');
+    } else if (result.codigo === 'POSTULACION_INCOMPLETA') {
+      setFaltantesServidor(result.data?.faltantes || []);
       setError(result.message);
-    }
-
-    setSaving(false);
-  };
-
-  const handleFamiliaresChange = (newFamiliares) => {
-    setFamiliares(newFamiliares);
-  };
-
-  const handleGuardarFamiliares = async () => {
-    setSaving(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    const datosAGuardar = {
-      sector: postulacion?.sector || 'afiliados',
-      tiene_familiares: familiares.tiene_familiares,
-      familiares: familiares.familiares,
-    };
-
-    const result = await guardarPostulacion(datosAGuardar);
-
-    if (result.success) {
-      setSuccessMessage('Familiares guardados exitosamente');
-      setTimeout(() => setSuccessMessage(null), 3000);
+      await cargarPostulacion({ silencioso: true });
     } else {
-      setError(result.message);
+      manejarError(result);
     }
-
-    setSaving(false);
-  };
-
-  const handleCargoChange = (newCargo) => {
-    setCargo(newCargo);
-  };
-
-  const handleGuardarCargo = async () => {
-    setSaving(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    const datosAGuardar = {
-      sector: cargo.sector,
-      respaldo_organizacion: cargo.respaldo_organizacion,
-    };
-
-    const result = await guardarPostulacion(datosAGuardar);
-
-    if (result.success) {
-      setSuccessMessage('Selección de cargo guardada exitosamente');
-      setTimeout(() => setSuccessMessage(null), 3000);
-      // Actualizar el sector en la postulación
-      setPostulacion({ ...postulacion, sector: cargo.sector });
-    } else {
-      setError(result.message);
-      // Si el error es de sector no válido, cerrar la postulación
-      if (result.codigo === 'SECTOR_NO_VALIDO') {
-        setPostulacionCerrada(true);
-      }
-    }
-
-    setSaving(false);
-  };
-
-  const handleFormacionChange = (newFormacion) => {
-    setFormacion(newFormacion);
-  };
-
-  const handleGuardarFormacion = async () => {
-    setSaving(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    const datosAGuardar = {
-      sector: postulacion?.sector || 'afiliados',
-      formacion: formacion,
-    };
-
-    const result = await guardarPostulacion(datosAGuardar);
-
-    if (result.success) {
-      setSuccessMessage('Formación académica guardada exitosamente');
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } else {
-      setError(result.message);
-    }
-
-    setSaving(false);
-  };
-
-  const handleExperienciaChange = (newExperiencia) => {
-    setExperiencia(newExperiencia);
-  };
-
-  const handleGuardarExperiencia = async () => {
-    setSaving(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    const datosAGuardar = {
-      sector: postulacion?.sector || 'afiliados',
-      experiencia: experiencia,
-    };
-
-    const result = await guardarPostulacion(datosAGuardar);
-
-    if (result.success) {
-      setSuccessMessage('Experiencia profesional guardada exitosamente');
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } else {
-      setError(result.message);
-    }
-
-    setSaving(false);
-  };
-
-  const handleInhabilidadesChange = (newInhabilidades) => {
-    setInhabilidades(newInhabilidades);
-  };
-
-  const handleGuardarInhabilidades = async () => {
-    setSaving(true);
-    setError(null);
-    setSuccessMessage(null);
-
-    const datosAGuardar = {
-      sector: postulacion?.sector || 'afiliados',
-      inhabilidades: inhabilidades,
-    };
-
-    const result = await guardarPostulacion(datosAGuardar);
-
-    if (result.success) {
-      setSuccessMessage('Inhabilidades guardadas exitosamente');
-      setTimeout(() => setSuccessMessage(null), 3000);
-    } else {
-      setError(result.message);
-    }
-
-    setSaving(false);
-  };
-
-  const handleEnviarPostulacion = () => {
-    setPostulacionEnviada(true);
+    setEnviando(false);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Spinner />
-          <p className="mt-4 text-gray-600">Cargando postulación...</p>
+      <div className="flex min-h-[60vh] items-center justify-center px-4" role="status" aria-live="polite">
+        <div className="text-center text-blue-700">
+          <Spinner size="lg" className="mx-auto" />
+          <p className="mt-4 text-sm font-medium text-slate-600">Cargando postulación...</p>
         </div>
       </div>
     );
   }
 
-  if (postulacionCerrada) {
+  // Cerrada sin datos (el backend rechaza la consulta): solo se muestra el motivo exacto
+  if (cerrada && !postulacion) {
     return (
-      <div className="min-h-screen bg-gray-50 py-8 px-4">
-        <div className="max-w-4xl mx-auto">
+      <div className="px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-3xl">
           <Card title="Postulación Cerrada">
-            <div className="space-y-4">
-              <Alert
-                type="error"
-                message="Su postulación ha sido cerrada. No puede continuar con el proceso."
-              />
-              <button
-                onClick={() => navigate('/')}
-                className="px-4 py-2 bg-gray-200 text-gray-900 rounded-md hover:bg-gray-300"
-              >
+            <div className="space-y-5">
+              <AvisoEstado tipo="cerrada" titulo="Su postulación ha sido cerrada" detalle={motivoCierre} />
+              <Button variant="secondary" onClick={() => navigate('/dashboard')}>
                 Volver al inicio
-              </button>
+              </Button>
             </div>
           </Card>
         </div>
@@ -412,139 +266,156 @@ const PostulacionPage = () => {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Formulario de Postulación</h1>
-          <p className="text-gray-600 mt-2">
-            Complete los pasos para postular al concurso público de méritos del BIESS
-          </p>
+  if (!postulacion) {
+    return (
+      <div className="px-4 py-10 sm:px-6">
+        <div className="mx-auto max-w-3xl space-y-4">
+          <Alert type="error" message={error || 'No se pudo cargar la postulación'} />
+          <Button onClick={() => cargarPostulacion()}>Reintentar</Button>
         </div>
+      </div>
+    );
+  }
 
-        {error && (
-          <Alert type="error" message={error} onClose={() => setError(null)} className="mb-4" />
-        )}
+  const esUltimoPaso = currentStep === steps.length - 1;
+  const guardarPasoActual = guardadoPorPaso[currentStep];
 
-        {successMessage && (
-          <Alert
-            type="success"
-            message={successMessage}
-            onClose={() => setSuccessMessage(null)}
-            className="mb-4"
+  return (
+    <div className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+      <div className="mx-auto max-w-6xl space-y-5">
+        <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Formulario de Postulación</h1>
+            <p className="mt-1 text-sm text-slate-600 sm:text-base">
+              Complete los pasos para postular al concurso público de méritos del BIESS
+            </p>
+          </div>
+          {postulacion.codigo && (
+            <p className="text-xs text-slate-500">
+              Código: <span className="font-mono text-slate-700">{postulacion.codigo}</span>
+            </p>
+          )}
+        </header>
+
+        {cerrada && (
+          <AvisoEstado
+            tipo="cerrada"
+            titulo="Postulación cerrada"
+            detalle={motivoCierre}
+            nota="La postulación está cerrada y no admite cambios."
           />
         )}
 
-        <Stepper steps={steps} currentStep={currentStep} onStepClick={handleStepClick} />
+        {enviada && (
+          <AvisoEstado
+            tipo="enviada"
+            titulo="Postulación enviada"
+            detalle={
+              <>
+                Código de postulación: <strong className="font-mono text-base">{postulacion.codigo}</strong>
+              </>
+            }
+            nota="El formulario está en modo solo lectura."
+          />
+        )}
 
-        <div className="mt-6">
-          {currentStep === 0 && (
-            <DatosPersonales
-              datos={datosPersonales}
-              loading={loading}
-              error={error}
-              onClose={() => setPostulacionCerrada(true)}
-            />
-          )}
+        {error && !cerrada && <Alert type="error" message={error} onClose={() => setError(null)} />}
 
-          {currentStep === 1 && (
-            <DomicilioContacto
-              datos={domicilio}
-              onChange={handleDomicilioChange}
-              onSave={handleGuardarDomicilio}
-              saving={saving}
-              error={error}
-            />
-          )}
+        {successMessage && (
+          <Alert type="success" message={successMessage} onClose={() => setSuccessMessage(null)} />
+        )}
 
-          {currentStep === 2 && (
-            <FamiliaresIESS
-              datos={familiares}
-              onChange={handleFamiliaresChange}
-              onSave={handleGuardarFamiliares}
-              saving={saving}
-              error={error}
-            />
-          )}
+        <Stepper steps={steps} currentStep={currentStep} onStepClick={irAPaso} />
 
-          {currentStep === 3 && (
-            <SeleccionCargo
-              datos={cargo}
-              onChange={handleCargoChange}
-              onSave={handleGuardarCargo}
-              saving={saving}
-              error={error}
-            />
-          )}
+        <div>
+          {currentStep === 0 && <DatosPersonales datos={postulacion.datos_personales} loading={false} />}
 
-          {currentStep === 4 && (
-            <FormacionAcademica
-              datos={formacion}
-              onChange={handleFormacionChange}
-              onSave={handleGuardarFormacion}
-              saving={saving}
-              error={error}
-            />
-          )}
+          {/* fieldset deshabilitado bloquea todos los campos y botones de las secciones editables */}
+          <fieldset disabled={soloLectura || saving} className="contents">
+            {currentStep === 1 && (
+              <DomicilioContacto
+                datos={domicilio}
+                onChange={setDomicilio}
+                onSave={handleGuardarDomicilio}
+                saving={saving}
+                serverErrors={erroresDomicilio}
+              />
+            )}
 
-          {currentStep === 5 && (
-            <ExperienciaProfesional
-              datos={experiencia}
-              onChange={handleExperienciaChange}
-              onSave={handleGuardarExperiencia}
-              saving={saving}
-              error={error}
-            />
-          )}
+            {currentStep === 2 && (
+              <FamiliaresIESS
+                datos={familiares}
+                onChange={setFamiliares}
+                onSave={handleGuardarFamiliares}
+                saving={saving}
+              />
+            )}
 
-          {currentStep === 6 && (
-            <Inhabilidades
-              datos={inhabilidades}
-              onChange={handleInhabilidadesChange}
-              onSave={handleGuardarInhabilidades}
-              saving={saving}
-              error={error}
-            />
-          )}
+            {currentStep === 3 && (
+              <SeleccionCargo datos={cargo} onChange={setCargo} onSave={handleGuardarCargo} saving={saving} />
+            )}
 
-          {currentStep === 7 && (
+            {currentStep === 4 && (
+              <FormacionAcademica
+                datos={formacion}
+                onChange={setFormacion}
+                onSave={handleGuardarFormacion}
+                saving={saving}
+              />
+            )}
+
+            {currentStep === 5 && (
+              <ExperienciaProfesional
+                datos={experiencia}
+                onChange={setExperiencia}
+                onSave={handleGuardarExperiencia}
+                saving={saving}
+              />
+            )}
+
+            {currentStep === 6 && (
+              <Inhabilidades
+                datos={inhabilidades}
+                onChange={setInhabilidades}
+                onSave={handleGuardarInhabilidades}
+                saving={saving}
+              />
+            )}
+          </fieldset>
+
+          {currentStep === 7 && !cerrada && (
             <Consentimiento
               postulacion={postulacion}
+              faltantes={faltantes}
+              faltantesServidor={faltantesServidor}
               onEnviar={handleEnviarPostulacion}
-              saving={saving}
-              error={error}
+              enviando={enviando}
+              onIrAPaso={irAPaso}
             />
           )}
         </div>
 
-        <div className="mt-6 flex justify-between">
-          <button
-            onClick={handlePrevious}
-            disabled={currentStep === 0 || postulacionEnviada}
-            className="px-4 py-2 bg-gray-200 text-gray-900 rounded-md hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            Anterior
-          </button>
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-200 pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <Button variant="secondary" onClick={() => irAPaso(currentStep - 1)} disabled={currentStep === 0}>
+            <span aria-hidden="true">←</span> Anterior
+          </Button>
 
-          {!postulacionEnviada && (
-            <div className="flex gap-3">
-              <button
-                onClick={handleGuardar}
-                disabled={saving || currentStep === 7}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {saving ? 'Guardando...' : 'Guardar Progreso'}
-              </button>
-
-              <button
-                onClick={handleNext}
-                disabled={currentStep === steps.length - 1}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {currentStep === steps.length - 1 ? 'Finalizar' : 'Siguiente'}
-              </button>
-            </div>
-          )}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            {!soloLectura && guardarPasoActual && (
+              <Button variant="outline" onClick={() => guardarPasoActual()} disabled={saving}>
+                {saving ? (
+                  <>
+                    <Spinner size="sm" /> Guardando...
+                  </>
+                ) : (
+                  'Guardar Progreso'
+                )}
+              </Button>
+            )}
+            <Button onClick={() => irAPaso(currentStep + 1)} disabled={esUltimoPaso}>
+              Siguiente <span aria-hidden="true">→</span>
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -171,15 +171,15 @@ const ExperienciaProfesional = ({ datos, onChange, onSave, saving, error }) => {
         {/* Resumen de totales */}
         {datos && datos.length > 0 && (
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-sm font-medium text-gray-900 mb-3">Total de Experiencia Acumulada</h3>
+            <h3 className="text-sm font-medium text-slate-900 mb-3">Total de Experiencia Acumulada</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <p className="text-sm font-medium text-gray-700">General:</p>
-                <p className="text-sm text-gray-600">{formatearDuracion(totales.general)}</p>
+                <p className="text-sm font-medium text-slate-700">General:</p>
+                <p className="text-sm text-slate-600">{formatearDuracion(totales.general)}</p>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-700">Dirección:</p>
-                <p className="text-sm text-gray-600">{formatearDuracion(totales.direccion)}</p>
+                <p className="text-sm font-medium text-slate-700">Dirección:</p>
+                <p className="text-sm text-slate-600">{formatearDuracion(totales.direccion)}</p>
               </div>
             </div>
           </div>
@@ -187,7 +187,7 @@ const ExperienciaProfesional = ({ datos, onChange, onSave, saving, error }) => {
 
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-medium text-gray-900">Lista de Experiencia Profesional</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Lista de Experiencia Profesional</h3>
             <Button
               type="button"
               variant="outline"
@@ -200,8 +200,8 @@ const ExperienciaProfesional = ({ datos, onChange, onSave, saving, error }) => {
 
           {/* Formulario de edición/creación */}
           {editandoIndex !== null && (
-            <div className="bg-gray-50 border rounded-lg p-4 space-y-4">
-              <h4 className="text-sm font-medium text-gray-900">
+            <div className="bg-slate-50 border rounded-lg p-4 space-y-4">
+              <h4 className="text-sm font-medium text-slate-900">
                 {editandoIndex === 'nuevo' ? 'Nueva Experiencia' : 'Editar Experiencia'}
               </h4>
 
@@ -259,7 +259,7 @@ const ExperienciaProfesional = ({ datos, onChange, onSave, saving, error }) => {
                 />
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
                     Descripción * (máx. 1000 caracteres)
                   </label>
                   <textarea
@@ -267,14 +267,14 @@ const ExperienciaProfesional = ({ datos, onChange, onSave, saving, error }) => {
                     onChange={(e) => handleExperienciaFormChange('descripcion', e.target.value)}
                     rows={4}
                     className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.descripcion ? 'border-red-500' : 'border-gray-300'
+                      errors.descripcion ? 'border-red-500' : 'border-slate-300'
                     }`}
                     placeholder="Describa sus funciones y logros..."
                   />
                   {errors.descripcion && (
                     <p className="mt-1 text-sm text-red-600">{errors.descripcion}</p>
                   )}
-                  <p className="mt-1 text-sm text-gray-500">
+                  <p className="mt-1 text-sm text-slate-500">
                     Caracteres: {experienciaForm.descripcion.length}/1000
                   </p>
                 </div>
@@ -309,23 +309,23 @@ const ExperienciaProfesional = ({ datos, onChange, onSave, saving, error }) => {
                     className="bg-white border rounded-lg p-4 flex justify-between items-start"
                   >
                     <div className="flex-1">
-                      <p className="font-medium text-gray-900">{experiencia.cargo}</p>
-                      <p className="text-sm text-gray-600">
+                      <p className="font-medium text-slate-900">{experiencia.cargo}</p>
+                      <p className="text-sm text-slate-600">
                         {tipos.find(t => t.value === experiencia.tipo)?.label} - {experiencia.institucion}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-slate-500">
                         {experiencia.fecha_inicio} {experiencia.fecha_fin ? ` - ${experiencia.fecha_fin}` : ' - En curso'}
                       </p>
-                      <p className="text-sm text-gray-500">
+                      <p className="text-sm text-slate-500">
                         Duración: {formatearDuracion(duracion)}
                       </p>
                       {experiencia.actividades_relacionadas && (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-slate-500">
                           Actividades: {experiencia.actividades_relacionadas}
                         </p>
                       )}
                       {experiencia.descripcion && (
-                        <p className="text-sm text-gray-500 mt-1">
+                        <p className="text-sm text-slate-500 mt-1">
                           {experiencia.descripcion.substring(0, 100)}
                           {experiencia.descripcion.length > 100 && '...'}
                         </p>
@@ -357,21 +357,20 @@ const ExperienciaProfesional = ({ datos, onChange, onSave, saving, error }) => {
             </div>
           ) : (
             !editandoIndex && (
-              <div className="text-center py-8 text-gray-500 border-2 border-dashed rounded-lg">
+              <div className="text-center py-8 text-slate-500 border-2 border-dashed rounded-lg">
                 No hay experiencia profesional agregada. Click en "Agregar Experiencia" para comenzar.
               </div>
             )
           )}
         </div>
 
-        <div className="flex justify-end">
-          <button
+        <div className="flex justify-end border-t border-slate-100 pt-5">
+          <Button
             onClick={onSave}
             disabled={saving}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Guardando...' : 'Guardar'}
-          </button>
+          </Button>
         </div>
       </div>
     </Card>

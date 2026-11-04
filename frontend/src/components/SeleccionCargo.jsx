@@ -65,7 +65,7 @@ const SeleccionCargo = ({ datos, onChange, onSave, saving, error }) => {
 
         {/* Selección de sector */}
         <div className="space-y-4">
-          <label className="block text-sm font-medium text-gray-700">
+          <label className="block text-sm font-medium text-slate-700">
             Seleccione el sector al que desea postularse:
           </label>
 
@@ -76,7 +76,7 @@ const SeleccionCargo = ({ datos, onChange, onSave, saving, error }) => {
                 className={`border-2 rounded-lg p-4 cursor-pointer transition-all ${
                   datos.sector === sector.value
                     ? 'border-blue-500 bg-blue-50'
-                    : 'border-gray-200 hover:border-gray-300'
+                    : 'border-slate-200 hover:border-slate-300'
                 }`}
                 onClick={() => !datos.sector && handleSectorChange(sector.value)}
               >
@@ -91,8 +91,8 @@ const SeleccionCargo = ({ datos, onChange, onSave, saving, error }) => {
                     className="mt-1"
                   />
                   <div className="flex-1">
-                    <h3 className="font-medium text-gray-900">{sector.label}</h3>
-                    <p className="text-sm text-gray-600 mt-1">{sector.description}</p>
+                    <h3 className="font-medium text-slate-900">{sector.label}</h3>
+                    <p className="text-sm text-slate-600 mt-1">{sector.description}</p>
                   </div>
                 </div>
               </div>
@@ -104,7 +104,7 @@ const SeleccionCargo = ({ datos, onChange, onSave, saving, error }) => {
         {datos.sector && (
           <div className="space-y-4 pt-4 border-t">
             <div className="space-y-3">
-              <label className="block text-sm font-medium text-gray-700">
+              <label className="block text-sm font-medium text-slate-700">
                 ¿Cuenta con el respaldo de alguna organización?
               </label>
               <div className="flex gap-4">
@@ -136,7 +136,7 @@ const SeleccionCargo = ({ datos, onChange, onSave, saving, error }) => {
             {/* Nombre de organización */}
             {datos.respaldo_organizacion?.tiene_respaldo && (
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700">
+                <label className="block text-sm font-medium text-slate-700">
                   Nombre de la organización *
                 </label>
                 <input
@@ -144,7 +144,7 @@ const SeleccionCargo = ({ datos, onChange, onSave, saving, error }) => {
                   value={datos.respaldo_organizacion?.nombre_organizacion || ''}
                   onChange={(e) => handleNombreOrganizacionChange(e.target.value)}
                   placeholder="Ingrese el nombre de la organización"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
                 {!datos.respaldo_organizacion?.nombre_organizacion?.trim() && (
@@ -158,17 +158,16 @@ const SeleccionCargo = ({ datos, onChange, onSave, saving, error }) => {
         {/* Botón de guardar */}
         {datos.sector && (
           <div className="flex justify-end pt-4 border-t">
-            <button
+            <Button
               onClick={onSave}
               disabled={
                 saving ||
                 (datos.respaldo_organizacion?.tiene_respaldo &&
                   !datos.respaldo_organizacion?.nombre_organizacion?.trim())
               }
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? 'Guardando...' : 'Guardar'}
-            </button>
+            </Button>
           </div>
         )}
       </div>

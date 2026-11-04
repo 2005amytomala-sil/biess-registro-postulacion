@@ -149,7 +149,7 @@ const FormacionAcademica = ({ datos, onChange, onSave, saving, error }) => {
 
         <div className="space-y-4">
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-medium text-gray-900">Lista de Formación Académica</h3>
+            <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Lista de Formación Académica</h3>
             <Button
               type="button"
               variant="outline"
@@ -162,8 +162,8 @@ const FormacionAcademica = ({ datos, onChange, onSave, saving, error }) => {
 
           {/* Formulario de edición/creación */}
           {editandoIndex !== null && (
-            <div className="bg-gray-50 border rounded-lg p-4 space-y-4">
-              <h4 className="text-sm font-medium text-gray-900">
+            <div className="bg-slate-50 border rounded-lg p-4 space-y-4">
+              <h4 className="text-sm font-medium text-slate-900">
                 {editandoIndex === 'nuevo' ? 'Nueva Formación' : 'Editar Formación'}
               </h4>
 
@@ -251,21 +251,21 @@ const FormacionAcademica = ({ datos, onChange, onSave, saving, error }) => {
                   className="bg-white border rounded-lg p-4 flex justify-between items-start"
                 >
                   <div className="flex-1">
-                    <p className="font-medium text-gray-900">{formacion.titulo}</p>
-                    <p className="text-sm text-gray-600">
+                    <p className="font-medium text-slate-900">{formacion.titulo}</p>
+                    <p className="text-sm text-slate-600">
                       {niveles.find(n => n.value === formacion.nivel)?.label} - {formacion.institucion}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-slate-500">
                       Tipo: {tipos.find(t => t.value === formacion.tipo)?.label}
                     </p>
                     {formacion.area_estudios && (
-                      <p className="text-sm text-gray-500">Área: {formacion.area_estudios}</p>
+                      <p className="text-sm text-slate-500">Área: {formacion.area_estudios}</p>
                     )}
                     {formacion.registro_senescyt && (
-                      <p className="text-sm text-gray-500">Registro SENESCYT: {formacion.registro_senescyt}</p>
+                      <p className="text-sm text-slate-500">Registro SENESCYT: {formacion.registro_senescyt}</p>
                     )}
                     {formacion.fecha_registro_senescyt && (
-                      <p className="text-sm text-gray-500">Fecha: {formacion.fecha_registro_senescyt}</p>
+                      <p className="text-sm text-slate-500">Fecha: {formacion.fecha_registro_senescyt}</p>
                     )}
                   </div>
                   <div className="flex gap-2 ml-4">
@@ -293,21 +293,20 @@ const FormacionAcademica = ({ datos, onChange, onSave, saving, error }) => {
             </div>
           ) : (
             !editandoIndex && (
-              <div className="text-center py-8 text-gray-500 border-2 border-dashed rounded-lg">
+              <div className="text-center py-8 text-slate-500 border-2 border-dashed rounded-lg">
                 No hay formación académica agregada. Click en "Agregar Formación" para comenzar.
               </div>
             )
           )}
         </div>
 
-        <div className="flex justify-end">
-          <button
+        <div className="flex justify-end border-t border-slate-100 pt-5">
+          <Button
             onClick={onSave}
             disabled={saving}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? 'Guardando...' : 'Guardar'}
-          </button>
+          </Button>
         </div>
       </div>
     </Card>

@@ -1,25 +1,20 @@
-const Spinner = ({ size = 'md', className = '' }) => {
-  const sizes = {
-    sm: 'h-4 w-4',
-    md: 'h-8 w-8',
-    lg: 'h-12 w-12',
-  };
+const sizes = {
+  sm: 'h-4 w-4',
+  small: 'h-4 w-4',
+  md: 'h-8 w-8',
+  lg: 'h-12 w-12',
+};
 
+const Spinner = ({ size = 'md', className = '' }) => {
   return (
     <svg
-      className={`animate-spin ${sizes[size]} ${className}`}
+      className={`animate-spin ${sizes[size] || sizes.md} ${className}`}
       xmlns="http://www.w3.org/2000/svg"
       fill="none"
       viewBox="0 0 24 24"
+      aria-hidden="true"
     >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      ></circle>
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
       <path
         className="opacity-75"
         fill="currentColor"

@@ -22,7 +22,7 @@ api.interceptors.request.use(
   }
 );
 
-// Interceptor de respuesta: maneja errores específicos
+// Interceptor de respuesta: normaliza los errores a { message, status, codigo, data, retryAfter }
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -35,55 +35,41 @@ api.interceptors.response.use(
     }
 
     const { status, data } = error.response;
+    const serverMessage = data?.error || data?.message;
+    const base = { status, codigo: data?.codigo, data: data || {}, originalError: error };
 
     switch (status) {
-      case 401:
+      case 401: {
         // No autorizado: solo cerrar sesión y redirigir si el usuario tiene una sesión activa
-        const hasToken = localStorage.getItem('token');
-        if (hasToken) {
+        if (localStorage.getItem('token')) {
           localStorage.removeItem('token');
           localStorage.removeItem('usuario');
           window.location.href = '/login';
-          return Promise.reject({
-            message: 'Su sesión ha expirado. Por favor, inicie sesión nuevamente.',
-            originalError: error,
-          });
+          return Promise.reject({ ...base, message: 'Su sesión ha expirado. Por favor, inicie sesión nuevamente.' });
         }
         // Si no hay sesión (ej. registro), usar mensaje del servidor
-        const authMessage = data?.error || data?.message;
-        return Promise.reject({
-          message: authMessage || 'Error de autenticación',
-          originalError: error,
-        });
+        return Promise.reject({ ...base, message: serverMessage || 'Error de autenticación' });
+      }
 
-      case 429:
-        // Demasiadas solicitudes: exponer retry_after
-        const retryAfter = data?.retry_after || 60;
+      case 429: {
+        // Bloqueo: exponer el mensaje del servidor y los segundos restantes reales
+        const retryAfter = Number(data?.retry_after || error.response.headers?.['retry-after']) || 600;
         return Promise.reject({
-          message: `Demasiados intentos. Intente nuevamente en ${retryAfter} segundos.`,
+          ...base,
+          message: serverMessage || 'Demasiados intentos. Intente nuevamente más tarde.',
           retryAfter,
-          originalError: error,
         });
+      }
 
       case 500:
-        return Promise.reject({
-          message: 'Error interno del servidor. Intente nuevamente más tarde.',
-          originalError: error,
-        });
+        return Promise.reject({ ...base, message: 'Error interno del servidor. Intente nuevamente más tarde.' });
 
       case 503:
-        return Promise.reject({
-          message: 'El servicio no está disponible temporalmente.',
-          originalError: error,
-        });
+        return Promise.reject({ ...base, message: 'El servicio no está disponible temporalmente.' });
 
       default:
-        // Otros errores: usar mensaje del servidor si existe
-        const serverMessage = data?.message || data?.error;
-        return Promise.reject({
-          message: serverMessage || 'Ocurrió un error inesperado.',
-          originalError: error,
-        });
+        // Otros errores (400, 404, 409, 422...): usar mensaje del servidor si existe
+        return Promise.reject({ ...base, message: serverMessage || 'Ocurrió un error inesperado.' });
     }
   }
 );
