@@ -32,7 +32,10 @@ func (h *AuthHandler) VerificarIdentidad(c *gin.Context) {
 	if err != nil {
 		// Si es error de bloqueo, agregar header Retry-After y body con retry_after
 		if appErr, ok := err.(*domain.AppError); ok && appErr.Code == domain.ErrBloqueado.Code {
-			retryAfter := 600 // 10 minutos por defecto
+			retryAfter := appErr.RetryAfter
+			if retryAfter == 0 {
+				retryAfter = 600 // fallback por seguridad
+			}
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error":       appErr.Message,
@@ -77,7 +80,10 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if err != nil {
 		// Si es error de bloqueo, agregar header Retry-After y body con retry_after
 		if appErr, ok := err.(*domain.AppError); ok && appErr.Code == domain.ErrBloqueado.Code {
-			retryAfter := 600 // 10 minutos por defecto
+			retryAfter := appErr.RetryAfter
+			if retryAfter == 0 {
+				retryAfter = 600 // fallback por seguridad
+			}
 			c.Header("Retry-After", strconv.Itoa(retryAfter))
 			c.JSON(http.StatusTooManyRequests, gin.H{
 				"error":       appErr.Message,

@@ -49,27 +49,31 @@ func (s *AuthService) VerificarIdentidad(ctx context.Context, cedula string, fec
 	}
 	if isBlocked {
 		return nil, &domain.AppError{
-			Code:    domain.ErrBloqueado.Code,
-			Message: fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
-			Err:     domain.ErrBloqueado,
+			Code:       domain.ErrBloqueado.Code,
+			Message:    fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
+			Err:        domain.ErrBloqueado,
+			RetryAfter: retryAfter,
 		}
 	}
 
 	// Verificar con el mock del Registro Civil
 	data, err := s.registroCivil.VerificarIdentidad(ctx, cedula, fechaExpedicion, codigoDactilar)
 	if err != nil {
+		log.Printf("[VERIFICAR_IDENTIDAD] Error del Registro Civil para %s: %v", cedula, err)
 		// Incrementar intentos de forma atómica
 		intentos, err := s.intentosLimiter.IncrementarIntento(ctx, cedula)
 		if err != nil {
 			return nil, err
 		}
+		log.Printf("[VERIFICAR_IDENTIDAD] Intentos para %s: %d", cedula, intentos)
 		// Si alcanzó el máximo (3), establecer bloqueo
 		if intentos >= 3 {
 			s.intentosLimiter.EstablecerBloqueo(ctx, cedula, 600)
 			return nil, &domain.AppError{
-				Code:    domain.ErrBloqueado.Code,
-				Message: domain.ErrBloqueado.Message,
-				Err:     domain.ErrBloqueado,
+				Code:       domain.ErrBloqueado.Code,
+				Message:    domain.ErrBloqueado.Message,
+				Err:        domain.ErrBloqueado,
+				RetryAfter: 600,
 			}
 		}
 		return nil, err
@@ -149,9 +153,10 @@ func (s *AuthService) Login(ctx context.Context, cedula string, password string)
 	}
 	if isBlocked {
 		return nil, &domain.AppError{
-			Code:    domain.ErrBloqueado.Code,
-			Message: fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
-			Err:     domain.ErrBloqueado,
+			Code:       domain.ErrBloqueado.Code,
+			Message:    fmt.Sprintf("%s (tiempo restante: %d segundos)", domain.ErrBloqueado.Message, retryAfter),
+			Err:        domain.ErrBloqueado,
+			RetryAfter: retryAfter,
 		}
 	}
 
