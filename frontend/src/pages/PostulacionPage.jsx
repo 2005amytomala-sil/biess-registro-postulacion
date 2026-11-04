@@ -80,6 +80,9 @@ const PostulacionPage = () => {
 
     if (result.success) {
       setPostulacion(result.data);
+      if (result.data.estado === 'enviada') {
+        setPostulacionEnviada(true);
+      }
       // Los datos personales se obtienen del backend (datos_personales del Registro Civil)
       if (result.data.datos_personales) {
         const dp = result.data.datos_personales;

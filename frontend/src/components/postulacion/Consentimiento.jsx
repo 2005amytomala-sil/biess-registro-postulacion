@@ -6,8 +6,8 @@ import { enviarPostulacion } from '../../services/postulacionApi';
 
 const Consentimiento = ({ postulacion, onEnviar, saving, error }) => {
   const [aceptaTerminos, setAceptaTerminos] = useState(false);
-  const [enviado, setEnviado] = useState(false);
-  const [codigoUnico, setCodigoUnico] = useState(null);
+  const [enviado, setEnviado] = useState(postulacion?.estado === 'enviada');
+  const [codigoUnico, setCodigoUnico] = useState(postulacion?.estado === 'enviada' ? postulacion.codigo : null);
   const [enviando, setEnviando] = useState(false);
 
   const handleEnviar = async () => {

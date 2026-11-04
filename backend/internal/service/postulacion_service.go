@@ -430,12 +430,18 @@ func (s *PostulacionService) EnviarPostulacion(ctx context.Context, postulanteID
 			return fmt.Errorf("error obteniendo postulación: %w", obtainErr)
 		}
 
-		// Validar que esté en estado borrador
+		// Hacer el envío idempotente: repetir la solicitud devuelve el código ya asignado.
+		if postulacion.Estado == "enviada" {
+			codigo = postulacion.Codigo
+			return nil
+		}
+
+		// Solo se puede enviar una postulación en borrador.
 		if postulacion.Estado != "borrador" {
 			return &domain.AppError{
-				Code:    "ESTADO_INVALIDO",
-				Message: "Solo se puede enviar una postulación en estado borrador",
-				Err:     domain.ErrValidation,
+				Code:    domain.ErrConflict.Code,
+				Message: "La postulación no está en estado borrador y no se puede enviar",
+				Err:     domain.ErrConflict,
 			}
 		}
 
