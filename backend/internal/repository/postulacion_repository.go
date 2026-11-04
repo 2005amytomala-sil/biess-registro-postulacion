@@ -18,7 +18,7 @@ func NewPostulacionRepository(pool *pgxpool.Pool) *PostulacionRepository {
 }
 
 func (r *PostulacionRepository) ObtenerPorPostulanteID(ctx context.Context, postulanteID int) (*domain.Postulacion, error) {
-	query := `SELECT id, postulante_id, codigo, sector, estado, motivo_cierre, created_at, updated_at 
+	query := `SELECT id, postulante_id, codigo, sector, estado, COALESCE(motivo_cierre, ''), created_at, updated_at 
 	          FROM postulaciones WHERE postulante_id = $1`
 
 	var postulacion domain.Postulacion
@@ -45,6 +45,25 @@ func (r *PostulacionRepository) Crear(ctx context.Context, tx pgx.Tx, postulacio
 	          VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at`
 
 	err := tx.QueryRow(ctx, query,
+		postulacion.PostulanteID,
+		postulacion.Codigo,
+		postulacion.Sector,
+		postulacion.Estado,
+		postulacion.MotivoCierre,
+	).Scan(&postulacion.ID, &postulacion.CreatedAt, &postulacion.UpdatedAt)
+
+	if err != nil {
+		return fmt.Errorf("error al crear postulación: %w", err)
+	}
+
+	return nil
+}
+
+func (r *PostulacionRepository) CrearSinTx(ctx context.Context, postulacion *domain.Postulacion) error {
+	query := `INSERT INTO postulaciones (postulante_id, codigo, sector, estado, motivo_cierre)
+	          VALUES ($1, $2, $3, $4, $5) RETURNING id, created_at, updated_at`
+
+	err := r.pool.QueryRow(ctx, query,
 		postulacion.PostulanteID,
 		postulacion.Codigo,
 		postulacion.Sector,

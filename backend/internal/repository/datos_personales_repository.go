@@ -51,3 +51,29 @@ func (r *DatosPersonalesRepository) Guardar(ctx context.Context, tx pgx.Tx, dato
 
 	return nil
 }
+
+func (r *DatosPersonalesRepository) ObtenerPorPostulacionID(ctx context.Context, postulacionID int) (*domain.DatosPersonales, error) {
+	query := `SELECT postulacion_id, nombres, apellidos, cedula, genero, fecha_nacimiento, nacionalidad, estado_civil, pareja_nombres, pareja_cedula, created_at
+	          FROM datos_personales WHERE postulacion_id = $1`
+
+	var datos domain.DatosPersonales
+	err := r.pool.QueryRow(ctx, query, postulacionID).Scan(
+		&datos.PostulacionID,
+		&datos.Nombres,
+		&datos.Apellidos,
+		&datos.Cedula,
+		&datos.Genero,
+		&datos.FechaNacimiento,
+		&datos.Nacionalidad,
+		&datos.EstadoCivil,
+		&datos.ParejaNombres,
+		&datos.ParejaCedula,
+		&datos.CreatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener datos personales: %w", err)
+	}
+
+	return &datos, nil
+}

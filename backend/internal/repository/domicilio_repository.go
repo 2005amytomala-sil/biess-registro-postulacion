@@ -62,3 +62,35 @@ func (r *DomicilioRepository) Guardar(ctx context.Context, tx pgx.Tx, domicilio 
 
 	return nil
 }
+
+func (r *DomicilioRepository) ObtenerPorPostulacionID(ctx context.Context, postulacionID int) (*domain.DomicilioContacto, error) {
+	query := `SELECT postulacion_id, pais_id, provincia_id, canton_id, provincia_texto, ciudad_texto, celular, correo_1, correo_2, 
+	          calle_principal, numero, calle_secundaria, sector, referencia, telefono_domicilio, created_at
+	          FROM domicilio_contacto WHERE postulacion_id = $1`
+
+	var domicilio domain.DomicilioContacto
+	err := r.pool.QueryRow(ctx, query, postulacionID).Scan(
+		&domicilio.PostulacionID,
+		&domicilio.PaisID,
+		&domicilio.ProvinciaID,
+		&domicilio.CantonID,
+		&domicilio.ProvinciaTexto,
+		&domicilio.CiudadTexto,
+		&domicilio.Celular,
+		&domicilio.Correo1,
+		&domicilio.Correo2,
+		&domicilio.CallePrincipal,
+		&domicilio.Numero,
+		&domicilio.CalleSecundaria,
+		&domicilio.Sector,
+		&domicilio.Referencia,
+		&domicilio.TelefonoDomicilio,
+		&domicilio.CreatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("error al obtener domicilio: %w", err)
+	}
+
+	return &domicilio, nil
+}

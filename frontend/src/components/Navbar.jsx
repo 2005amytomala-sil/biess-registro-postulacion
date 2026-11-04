@@ -20,7 +20,13 @@ const Navbar = () => {
                   Hola, {usuario?.cedula || 'Usuario'}
                 </span>
                 <Link
-                  to="/formulario"
+                  to="/dashboard"
+                  className="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
+                >
+                  Dashboard
+                </Link>
+                <Link
+                  to="/postulacion"
                   className="px-3 py-2 rounded-md text-sm font-medium hover:bg-blue-700 transition-colors"
                 >
                   Formulario
